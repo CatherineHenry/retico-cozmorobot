@@ -47,7 +47,12 @@ class CozmoCameraModule(retico_core.AbstractProducingModule):
         self.exposure_amount = exposure
         self.gain_amount = gain
         self.img_queue = deque(maxlen=1)
-        
+
+
+        # NOTE: was seeing intermittent issues when this was in setup -- the exposure/gain was not setting correctly and would be too bright
+        self.configure_camera()
+
+
     def process_update(self, blank):
 
         if len(self.img_queue) > 0:
