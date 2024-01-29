@@ -19,6 +19,7 @@ import time
 from collections import deque
 import numpy as np
 from PIL import Image
+import base64
 
 
 
@@ -32,7 +33,7 @@ class CozmoCameraModule(retico_core.AbstractProducingModule):
         return "Cozmo Camera Tracking Module"
 
     @staticmethod
-    def description():
+    def description(): 
         return "A module that tracks cozmo camera frames."
 
     @staticmethod
@@ -59,7 +60,8 @@ class CozmoCameraModule(retico_core.AbstractProducingModule):
             img = self.img_queue.popleft()
             # img = np.array(img)
             output_iu = self.create_iu(None)
-            output_iu.set_image(img, 1, 1)
+            bytes = img.tobytes()
+            output_iu.set_image(base64.b64encode(bytes).decode(), 1, 1)
             return retico_core.UpdateMessage.from_iu(output_iu, retico_core.UpdateType.ADD)
 
     
