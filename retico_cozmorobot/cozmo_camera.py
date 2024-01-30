@@ -33,7 +33,7 @@ class CozmoCameraModule(retico_core.AbstractProducingModule):
         return "Cozmo Camera Tracking Module"
 
     @staticmethod
-    def description(): 
+    def description():
         return "A module that tracks cozmo camera frames."
 
     @staticmethod
@@ -51,7 +51,7 @@ class CozmoCameraModule(retico_core.AbstractProducingModule):
 
 
         # NOTE: was seeing intermittent issues when this was in setup -- the exposure/gain was not setting correctly and would be too bright
-        self.configure_camera()
+        # self.configure_camera()
 
 
     def process_update(self, blank):
