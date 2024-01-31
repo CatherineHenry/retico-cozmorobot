@@ -96,7 +96,7 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
         if experiment_name == ExperimentName.a.value:  # without CLIP all we have is a T/F binary flag for if an obj is detected or not
             self.sensory_space_size = 1  # T or False binary value
         else:  # including CLIP
-            self.sensory_space_size = 519  # will consist of obj relative location + size feats concat w clip output
+            self.sensory_space_size = 384  # TODO: add location info will consist of obj relative location + size feats concat w clip output
 
         if agent is None:
             print(f"Starting new execution with uuid {self.execution_uuid} and date {self.date_timestamp}")
@@ -217,7 +217,7 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
                     if self.sensory_space_size == 1: # ignore the CLIP output and flag as "1" for obj detected
                         sensori_effect = [1]
                     else:
-                        sensori_effect = input_iu.payload["0"][0]
+                        sensori_effect = input_iu.payload["0"]
 
                 if '0' in input_iu.grounded_in.payload:
                     label = 'something'
