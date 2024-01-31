@@ -196,7 +196,7 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
 
                 if self.time_slept >= 200:
                     input_iu = ObjectFeaturesIU()
-                    input_iu.set_object_features(image=None, object_features={'object0': [-1] * self.sensory_space_size})
+                    input_iu.set_object_features(image=None, object_features={'0': [-1] * self.sensory_space_size})
                     self.time_slept = 0
 
                 else:
@@ -217,10 +217,10 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
                     if self.sensory_space_size == 1: # ignore the CLIP output and flag as "1" for obj detected
                         sensori_effect = [1]
                     else:
-                        sensori_effect = input_iu.payload["object0"][0]
+                        sensori_effect = input_iu.payload["0"][0]
 
-                if 'object0' in input_iu.grounded_in.payload:
-                    label = input_iu.grounded_in.payload['object0']['label_str']
+                if '0' in input_iu.grounded_in.payload:
+                    label = 'something'
                 else:
                     label = 'whitespace'
 
