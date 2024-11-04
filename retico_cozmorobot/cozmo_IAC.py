@@ -205,59 +205,6 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
                 
                 # inform the agent of the sensorimotor consequence of the action and update both the sensorimotor and interest models
                 self.agent.perceive(sensori_effect, flow_uuid=input_iu.flow_uuid)
-
-
-
-                undo_drive = -motor_action[1]
-                self.robot.drive_straight(distance_mm(undo_drive), speed_mmps(105), should_play_anim=False).wait_for_completed()
-                undo_rotation = -motor_action[0]
-                self.robot.turn_in_place(degrees(undo_rotation), angle_tolerance=degrees(0), is_absolute=False, speed=Angle(2)).wait_for_completed() # slow so it's more accurate
-
-                if self.num_ius_processed > 0 and self.num_ius_processed % 5 == 0:  # Every 5 actions
-                    self.robot.set_robot_volume(0.1) # 1 to hear at home
-                    self.robot.say_text("Re centering", duration_scalar=0.95, voice_pitch=1, use_cozmo_voice=True).wait_for_completed()
-                    self.robot.camera.color_image_enabled = False  # TODO: adjust gain and exposure, if not finding lightcube symbol reliably
-                    # self.robot.camera.set_manual_exposure(34.0, 0.21653125144541263)
-
-                    self.robot.set_robot_volume(0)
-                    self.robot.turn_in_place(degrees(180), angle_tolerance=degrees(0), is_absolute=False, speed=Angle(2)).wait_for_completed()
-                    # self.robot.turn_in_place(degrees(-90), angle_tolerance=degrees(0), is_absolute=False, speed=Angle(2)).wait_for_completed()
-                    self.robot.drive_straight(distance_mm(150), speed_mmps(105), should_play_anim=False).wait_for_completed()
-                    action = None
-                    recenter_attempts = 0
-                    while action is None or action.state !='action_succeeded' and recenter_attempts <=3:
-                        look_around = self.robot.start_behavior(cozmo.behavior.BehaviorTypes.LookAroundInPlace)
-
-                        try:
-                            cube = self.robot.world.wait_for_observed_light_cube(timeout=60, include_existing=False)
-                        except asyncio.TimeoutError:
-                            print(f"Didn't find a cube :-( on try {recenter_attempts}")
-                        finally:
-                            look_around.stop()
-
-                        # Cozmo will approach the cube he has seen
-                        # using a 180 approach angle will cause him to drive past the cube and approach from the opposite side
-                        # num_retries allows us to specify how many times Cozmo will retry the action in the event of it failing
-                        action = self.robot.dock_with_cube(cube, approach_angle=cozmo.util.degrees(180), num_retries=2).wait_for_completed()
-
-                        if action.state != 'action_succeeded':
-                            recenter_attempts += 1
-                            self.robot.drive_straight(distance_mm(-50), speed_mmps(60), should_play_anim=False).wait_for_completed()
-                            # self.robot.drive_straight(distance_mm(-80), speed_mmps(60), should_play_anim=False).wait_for_completed()
-                    # self.robot.camera.set_manual_exposure(self.configured_exposure_ms, self.configured_gain)
-                    self.robot.camera.color_image_enabled = True
-
-                    self.robot.drive_straight(distance_mm(-275), speed_mmps(105), should_play_anim=False).wait_for_completed()
-                    # self.robot.drive_straight(distance_mm(-145), speed_mmps(105), should_play_anim=False).wait_for_completed()
-                    self.robot.turn_in_place(degrees(180), angle_tolerance=degrees(0), is_absolute=False, speed=Angle(2)).wait_for_completed()
-                    # self.robot.turn_in_place(degrees(90), angle_tolerance=degrees(0), is_absolute=False, speed=Angle(2)).wait_for_completed()
-                    time.sleep(2)
-                    # self.robot.play_anim_trigger(cozmo.anim.Triggers.CubePounceIdleLiftUp).wait_for_completed()
-                    self.robot.set_head_angle(degrees(10), accel=10.0, max_speed=10.0, duration=1,
-                                         warn_on_clamp=True, in_parallel=True, num_retries=2).wait_for_completed()
-                    self.robot.set_lift_height(0).wait_for_completed()
-
-
                 self.robot.camera.image_stream_enabled = True
                 time.sleep(0.2)  # will too short a delay result in no image to pop in camera IU?
 
