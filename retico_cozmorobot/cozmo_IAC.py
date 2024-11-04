@@ -206,9 +206,6 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
                 # inform the agent of the sensorimotor consequence of the action and update both the sensorimotor and interest models
                 self.agent.perceive(sensori_effect, flow_uuid=input_iu.flow_uuid)
 
-                self.agent.interest_model.tree.plot(self.ax, self.ax2)
-                self.canvas.draw()
-                self.canvas2.draw()
 
 
                 undo_drive = -motor_action[1]
