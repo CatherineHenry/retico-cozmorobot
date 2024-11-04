@@ -10,20 +10,13 @@ import numpy as np
 import pandas as pd
 from explauto import InterestModel, SensorimotorModel
 from explauto.agent import ReticoAgent
-from matplotlib.figure import Figure
-from matplotlib import colormaps
+
 from explauto.environment.cozmo_env import CozmoEnvironment
 import tkinter as tk
 
-from matplotlib.backends.backend_tkagg import (
-    FigureCanvasTkAgg,
-    NavigationToolbar2Tk
-)
-from matplotlib import cm, patches
-import matplotlib.pyplot as plt
+
+
 from cozmo.util import Pose, degrees, Angle, distance_mm, speed_mmps
-from matplotlib.offsetbox import OffsetImage, AnnotationBbox
-from matplotlib.patches import Polygon
 
 import retico_core
 from retico_core import abstract, UpdateType
@@ -140,39 +133,8 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
             )
             self.interest_model = self.agent.interest_model
             self.sensorimotor_model = self.agent.sensorimotor_model
-
-        # self.accept_sensory_input = False
         self.time_slept = 0
-        plt.ion()  # interactive
-        window = tk.Toplevel(tk_root)
-        window.wm_attributes("-topmost", 1)
-        fig = Figure((13.5, 8.5))
-        fig.suptitle(f"Execution uuid: {self.execution_uuid}")
-        self.canvas = FigureCanvasTkAgg(fig, master=window)
-        self.canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
 
-        toolbar = NavigationToolbar2Tk(self.canvas, window)
-        toolbar.update()
-        toolbar.pack(fill=tk.X)
-
-        self.ax = fig.add_subplot(111)
-        cbar = fig.colorbar(cm.ScalarMappable(cmap=colormaps['gnuplot']), ax=self.ax, fraction=0.019)
-        cbar.ax.set_ylabel("Region learning potential")
-        self.canvas.draw()
-
-        window2 = tk.Toplevel(tk_root)
-        window2.wm_attributes("-topmost", 1)
-        fig2 = Figure((6.5, 7.5))
-        fig2.suptitle(f"Execution uuid: {self.execution_uuid}")
-        self.canvas2 = FigureCanvasTkAgg(fig2, master=window2)
-        self.canvas2.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
-
-        toolbar2 = NavigationToolbar2Tk(self.canvas2, window2)
-        toolbar2.update()
-        toolbar2.pack(fill=tk.X)
-
-        self.ax2 = fig2.add_subplot(111, projection='polar')
-        self.canvas2.draw()
 
     def process_update(self, update_message):
         for iu, ut in update_message:
