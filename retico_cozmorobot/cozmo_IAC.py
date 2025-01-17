@@ -22,7 +22,7 @@ import retico_core
 from retico_core import abstract, UpdateType
 from retico_cozmorobot.cozmo_state import RobotStateIU
 from retico_core.robot import IACMotorAction
-from retico_vision.vision import ObjectFeaturesIU
+from retico_vision.vision import ObjectFeaturesIU, ObjectPermanenceIU
 
 sys.path.append(os.environ["COZMO"])
 import cozmo
@@ -61,16 +61,18 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
 
     @staticmethod
     def input_ius():
-        return [RobotStateIU, ObjectFeaturesIU]
+        return [RobotStateIU, ObjectFeaturesIU, ObjectPermanenceIU]
 
     @staticmethod
     def output_iu():
         return IACMotorAction
 
     def __init__(self, robot: cozmo.robot.Robot, tk_root, date_timestamp, experiment_name, agent=None, save_data=False, execution_uuid=None, max_turn_count=0, **kwargs):
+    def __init__(self, robot: cozmo.robot.Robot, figs, date_timestamp, experiment_name, agent=None, save_data=False, execution_uuid=None, max_turn_count=0, **kwargs):
         super().__init__(**kwargs)
         self.num_ius_processed = 0
         self.robot = robot
+        robot.world.request_nav_memory_map(0.5)
         self.init_pose = robot.pose
         self.center_pose = Pose(350, 180, 0, angle_z=Angle(0))
         self.queue = deque(maxlen=1)
@@ -89,12 +91,15 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
         if experiment_name == ExperimentName.a.value:  # without CLIP all we have is a T/F binary flag for if an obj is detected or not
             self.sensory_space_size = 1  # T or False binary value
         else:  # including CLIP
-            self.sensory_space_size = 384  # TODO: add location info will consist of obj relative location + size feats concat w clip output
+            # self.sensory_space_size = 384  #DINO SENSORY SPACE# TODO: add location info will consist of obj relative location + size feats concat w DINO output
+            self.sensory_space_size = 519  #CLIP SENSORY SPACE # TODO: add location info will consist of obj relative location + size feats concat w clip output (should be size 519 w pos feats, 512 w/o)
 
         if agent is None:
             print(f"Starting new execution with uuid {self.execution_uuid} and date {self.date_timestamp}")
-            m_mins = [-180, -80]  # angle of rotation, backward linear travel
-            m_maxs = [180, 80]  # angle of rotation, forward linear travel
+            # m_mins = [-300, -200, -180]  # Cozmo Pose x,y (width and length of space + rotation) distance in mm # EDGE TO EDGE
+            # m_maxs = [300, 200, 180]  # Cozmo Pose x,y + rotation distance in mm # EDGE TO EDGE
+            m_mins = [-250, -150, -180]  # Cozmo Pose x,y (width and length of space + rotation) distance in mm # SOME PADDING
+            m_maxs = [250, 150, 180]  # Cozmo Pose x,y + rotation distance in mm # SOME PADDING
             # m_mins = [-130, -80]  # angle of rotation, backward linear travel. Zone out cube location
             # m_maxs = [130, 80]  # angle of rotation, forward linear travel. Zone out cube location
 
@@ -116,7 +121,7 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
             # self.sensorimotor_model = SensorimotorModel.from_configuration(self.cozmo_env.conf, 'NSLWLR-NONE', 'default')
             # Select Interest Model config based on Experiment
             config_name = experiment_name
-            self.interest_model = InterestModel.from_configuration(self.cozmo_env.conf, self.cozmo_env.conf.m_dims, 'tree', config_name)
+            self.interest_model = InterestModel.from_configuration(self.cozmo_env.conf, self.cozmo_env.conf.m_dims, 'tree', config_name, robot_world=robot.world) # passing nav mem map here because we rely on pass by reference for dynamic updates.
             self.agent = ReticoAgent(self.cozmo_env.conf, self.sensorimotor_model, self.interest_model, execution_uuid=self.execution_uuid, execution_date_timestamp=self.date_timestamp, save_data=self.save_data, experiment_name=experiment_name)  # agent is necessary to avoid bootstrapping issues
 
         else:
@@ -157,7 +162,7 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
                 # continue
 
                 if self.time_slept >= 200:
-                    input_iu = ObjectFeaturesIU()
+                    input_iu = ObjectPermanenceIU()
                     input_iu.set_object_features(image=None, object_features={'0': [-1] * self.sensory_space_size})
                     self.time_slept = 0
 
@@ -168,23 +173,23 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
                 input_iu = self.queue.popleft()
                 self.time_slept = 0
             # when new objects are observed (i.e., not SpeechRecognitionIUs)
-            if isinstance(input_iu, ObjectFeaturesIU):
+            if isinstance(input_iu, ObjectPermanenceIU):
                 output_iu = self.create_iu(grounded_in=input_iu)
                 motor_action = input_iu.motor_action
                 objects = input_iu.payload
                 if len(objects) == 0:
                     print("Didn't get feature, setting to -1 and continuing.")
                     sensori_effect = [-1]*self.sensory_space_size
+                    label = 'whitespace'
                 else:
+                    # self.add_perceived_object_to_map()
                     if self.sensory_space_size == 1: # ignore the CLIP output and flag as "1" for obj detected
                         sensori_effect = [1]
                     else:
-                        sensori_effect = input_iu.payload["0"]
-
-                if '0' in input_iu.grounded_in.payload:
+                        sensori_effect = input_iu.payload["0"][0]
+                    # If at a future point we care what YOLO thought it was, then pass that through and access using input_iu.grounded_in.grounded_in
+                    # or pass it along
                     label = 'something'
-                else:
-                    label = 'whitespace'
 
                 inferred_sensori = self.agent.y
 
@@ -198,14 +203,11 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
                     sensori_df.insert(0, 'flow_uuid', [input_iu.flow_uuid]*2)
                     sensori_df.insert(0, 'exec_uuid', [self.execution_uuid]*2)
 
-
                     sensori_df.to_csv(f'./IAC_output_data/sensori_effect_{self.date_timestamp}_{self.execution_uuid}_{self.experiment_shorthand_name}.csv', mode='a', index=False, header=False)
 
-
-                
                 # inform the agent of the sensorimotor consequence of the action and update both the sensorimotor and interest models
                 self.agent.perceive(sensori_effect, flow_uuid=input_iu.flow_uuid)
-                self.robot.camera.image_stream_enabled = True
+                self.robot.camera.image_stream_enabled = True  # image stream is disabled in retico camera extractor (don't want images when turning)
                 time.sleep(0.2)  # will too short a delay result in no image to pop in camera IU?
 
                 # if self.robot.battery_voltage < 3.5: # per docs, 3.5 is low. Not linear.
@@ -232,8 +234,6 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
                 um = retico_core.UpdateMessage.from_iu(output_iu, retico_core.UpdateType.ADD)
                 self.append(um)
                 self.num_ius_processed += 1
-
-
 
     def prepare_run(self):
         # `produce` calls `sample()` method on interest model then uses the sensorimotor model to obtain sensorimotor
