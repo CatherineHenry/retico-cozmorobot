@@ -8,7 +8,7 @@ from flask import Flask
 # retico
 import retico_core
 from retico_core.robot import IACMotorAction
-from retico_cozmorobot.remote_control_cozmo import RemoteControlCozmo
+from retico_cozmorobot.cozmo_remote_control_flask_app import RemoteControlCozmo
 
 flask_app = Flask(__name__)
 
