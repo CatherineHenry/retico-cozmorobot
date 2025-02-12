@@ -21,10 +21,8 @@ from flask import Flask
 
 import retico_core
 from retico_core import abstract, UpdateType
-from retico_cozmorobot import flask_helpers
 from retico_cozmorobot.cozmo_state import RobotStateIU
 from retico_core.robot import IACMotorAction
-from retico_cozmorobot.remote_control_cozmo import RemoteControlCozmo
 from retico_vision.vision import ObjectFeaturesIU, ObjectPermanenceIU
 
 sys.path.append(os.environ["COZMO"])
