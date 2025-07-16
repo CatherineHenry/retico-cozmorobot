@@ -121,7 +121,8 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
             # self.sensorimotor_model = SensorimotorModel.from_configuration(self.cozmo_env.conf, 'NSLWLR-NONE', 'default')
             # Select Interest Model config based on Experiment
             config_name = experiment_name
-            self.interest_model = InterestModel.from_configuration(self.cozmo_env.conf, self.cozmo_env.conf.m_dims, 'tree', config_name, robot_world=robot.world) # passing nav mem map here because we rely on pass by reference for dynamic updates.
+            # self.interest_model = InterestModel.from_configuration(self.cozmo_env.conf, self.cozmo_env.conf.m_dims, 'tree', config_name, robot_world=robot.world) # passing nav mem map here because we rely on pass by reference for dynamic updates.
+            self.interest_model = InterestModel.from_configuration(self.cozmo_env.conf, self.cozmo_env.conf.m_dims, 'tree', config_name, robot_nav_memory_map=robot.world.nav_memory_map) # passing nav mem map here because we rely on pass by reference for dynamic updates.
             self.agent = ReticoAgent(self.cozmo_env.conf, self.sensorimotor_model, self.interest_model, execution_uuid=self.execution_uuid, execution_date_timestamp=self.date_timestamp, save_data=self.save_data, experiment_name=experiment_name)  # agent is necessary to avoid bootstrapping issues
 
         else:
