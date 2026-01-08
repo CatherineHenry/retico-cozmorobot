@@ -48,7 +48,7 @@ class CozmoCameraModule(retico_core.AbstractModule):
         return ImageIU
 
 
-    def __init__(self, robot, exposure=0.05, gain=0.1, **kwargs):
+    def __init__(self, robot, exposure=40, gain=2, **kwargs):
         # for exp room:exposure=0.05, gain=0.05
         super().__init__(**kwargs)
         self.robot = robot
@@ -59,10 +59,13 @@ class CozmoCameraModule(retico_core.AbstractModule):
         # self.robot.play_anim_trigger(cozmo.anim.Triggers.CubePounceIdleLiftUp).wait_for_completed()        self.exposure_amount = exposure
         self.exposure_amount = exposure
         self.gain_amount = gain
+        self.configure_camera()
+
         self.img_queue = deque(maxlen=1)
         self.queue = deque()
 
-        # NOTE: was seeing intermittent issues when this was in setup -- the exposure/gain was not setting correctly and would be too bright
+
+    # NOTE: was seeing intermittent issues when this was in setup -- the exposure/gain was not setting correctly and would be too bright
         # self.configure_camera()
 
     def process_update(self, update_message):
@@ -114,23 +117,34 @@ class CozmoCameraModule(retico_core.AbstractModule):
         return None
 
     def configure_camera(self):
+        self.robot.camera.image_stream_enabled = True
         self.robot.camera.color_image_enabled = True
-        self.robot.camera.enable_auto_exposure = False # False means we can adjust manually
+        self.robot.camera.enable_auto_exposure(False) # = False # False means we can adjust manually
+        time.sleep(5) # wait for these settings to propagate through to Cozmo
         # Lerp exposure between min and max times
         min_exposure = self.robot.camera.config.min_exposure_time_ms
         max_exposure = self.robot.camera.config.max_exposure_time_ms
-        exposure_time = (1 - self.exposure_amount) * min_exposure + self.exposure_amount * max_exposure
+        trimmed_exposure = max(min_exposure, min(self.exposure_amount, max_exposure))
+        # exposure_time = (1 - self.exposure_amount) * min_exposure + self.exposure_amount * max_exposure
         # Lerp gain
         min_gain = self.robot.camera.config.min_gain
         max_gain = self.robot.camera.config.max_gain
-        actual_gain = (1-self.gain_amount)*min_gain + self.gain_amount*max_gain
-        self.robot.camera.set_manual_exposure(exposure_time,actual_gain)
+        trimmed_gain =  max(min_gain, min(self.gain_amount, max_gain))
+        print(f"[Before Setting] Exposure: {self.robot.camera.exposure_ms}, Gain: {self.robot.camera.gain}")
+
+        # actual_gain = (1-self.gain_amount)*min_gain + self.gain_amount*max_gain
+        self.robot.camera.set_manual_exposure(trimmed_exposure,trimmed_gain)
+        time.sleep(5) # wait for these settings to propagate through to Cozmo
+        # Setting twice, I've found that sometimes the first set doesn't reliably apply
+        self.robot.camera.set_manual_exposure(trimmed_exposure,trimmed_gain)
+        print(f"[After Setting] Exposure: {self.robot.camera.exposure_ms}, Gain: {self.robot.camera.gain}")
+
+
 
     def prepare_run(self):
         def handle_image(evt, obj=None, tap_count=None,  **kwargs):
             self.img_queue.append(evt.image)
 
-        self.configure_camera()
         time.sleep(20)
         self.robot.world.add_event_handler(cozmo.camera.EvtNewRawCameraImage, handle_image)
 
