@@ -30,6 +30,7 @@ from datetime import datetime
 
 import cv2
 import numpy as np
+from cozmo.util import degrees
 
 from retico_cozmorobot import flask_helpers
 
@@ -123,7 +124,8 @@ _default_camera_image = create_default_image(320, 240)
 
 _is_save_pose_btn_enabled = True
 
-_display_debug_annotations = DEBUG_ANNOTATIONS_ENABLED_ALL
+_display_debug_annotations = DEBUG_ANNOTATIONS_DISABLED  # The debug annotations cause significant lag for whatever reason
+# _display_debug_annotations = DEBUG_ANNOTATIONS_ENABLED_ALL
 
 
 def remap_to_range(x, x_min, x_max, out_min, out_max):
@@ -174,13 +176,10 @@ class RemoteControlCozmo:
         # threading.Thread(target=flask_helpers.run_flask, args=[flask_app, "127.0.0.1", 8112]).start()
         # threading.Thread(target=lambda: flask_helpers.run_flask(flask_app, host_port=8112)).start()
 
-
-
     def get_robot_pose(self):
         pose = self.cozmo.pose
         self.pose_queue.append(pose)
         return pose
-
 
     def handle_key(self, key_code, is_shift_down, is_ctrl_down, is_alt_down, is_key_down):
         '''Called on any key press or release
@@ -342,6 +341,11 @@ class RemoteControlCozmo:
 
         self.cozmo.drive_wheels(l_wheel_speed, r_wheel_speed, l_wheel_speed*4, r_wheel_speed*4 )
 
+    def stop_all_actions(self):
+        """Stops any currently running actions."""
+
+        self.cozmo.abort_all_actions()
+
 def to_js_bool_string(bool_value):
     return "true" if bool_value else "false"
 
@@ -369,13 +373,20 @@ def handle_index_page():
                     </td>
                     <td width=30></td>
                     <td valign=top>
-                        <b>Shutdown Server</b> : <button id="shutdownId" onClick=shutdownServerButtonClicked(this) style="font-size: 14px">Shutdown</button><br>
-                        <b>Save Robot Pose</b> : <button id="saveRobotPoseId" onClick=saveRobotPoseClicked(this) style="font-size: 14px">Save Pose</button><br>
+                        <b>Robot Pose</b> : <button id="saveRobotPoseId" onClick=saveRobotPoseClicked(this) style="font-size: 14px">Save</button><br>
+                        <br>
+                        <b>Nav Memory Map</b> : <button id="clearNavMemMapId" onClick=clearNavMemMapClicked(this) style="font-size: 14px">Clear</button><br>
+                        <br>  
+                        <b>Actions</b> : <button id="stopAllActionsId" onClick=stopAllActionsClicked(this) style="font-size: 14px">Stop All</button><br>
+                        <br>
                         <h2>Controls:</h2>
 
                         <h3>Driving:</h3>
 
                         <b>W A S D</b> : Drive Forwards / Left / Back / Right<br><br>
+                        <b> Head Height </b> : <span id="headHeightSpan"></span> <br>
+                        <input type="text" name="adjustHeadHeight" id="adjustHeadHeightId" value="10.0">
+                        <button id="saveHeadHeightButtonId" onClick=saveHeadHeightClicked(adjustHeadHeightId) style="font-size: 14px">Save Head Height</button><br>
                         <b>T</b> : Move Head Up<br>
                         <b>G</b> : Move Head Down<br>
 
@@ -419,6 +430,9 @@ def handle_index_page():
                 var gIsMicrosoftBrowser = gUserAgent.indexOf('MSIE ') > 0 || gUserAgent.indexOf('Trident/') > 0 || gUserAgent.indexOf('Edge/') > 0;
                 var gSkipFrame = false;
                 var intervalId;
+                var headHeight = -1
+                
+                setInterval(getUpdatedHeadHeight, 1000)
 
                 if (gIsMicrosoftBrowser) {
                     document.getElementById("cozmoImageMicrosoftWarning").style.display = "block";
@@ -516,16 +530,28 @@ def handle_index_page():
                     postHttpRequest("setAreDebugAnnotationsEnabled", {areDebugAnnotationsEnabled})
                 }
                 
-                function shutdownServerButtonClicked(button)
+                function getUpdatedHeadHeight()
                 {
-                    postHttpRequest("shutdown")
+                    postHttpRequestWithCallback("getUpdatedHeadHeight", '', updateHeadHeight)
                 }
+                
                 function saveRobotPoseClicked(button)
                 {
                     postHttpRequestWithCallback("toggleSavePoseBtn", '', updateIsSavePoseEnabled)
                     updateButtonEnabled(button);
                     postHttpRequest("saveRobotPose")
+                }    
+                           
+                function clearNavMemMapClicked(button)
+                {
+                    postHttpRequest("clearNavMemMap")
                 }
+                                
+                function stopAllActionsClicked(button)
+                {
+                    postHttpRequest("stopAllActionsBtn")
+                }
+                
                 function onHeadlightButtonClicked(button)
                 {
                     gIsHeadlightEnabled = !gIsHeadlightEnabled;
@@ -552,6 +578,10 @@ def handle_index_page():
                 gIsSavePoseEnabled = updatedValue
                 }
                 
+                function updateHeadHeight(updatedValue){
+                    headHeight = updatedValue
+                    document.getElementById("headHeightSpan").innerHTML = headHeight
+                }
                 
                 function handleDropDownSelect(selectObject)
                 {
@@ -608,8 +638,14 @@ def handle_index_page():
                 
                 function saveImageClicked(textField)
                 {
-                fileName = textField.value
+                fileName = headHeight + "_" + textField.value
                 postHttpRequest("saveImage", {fileName})
+                }   
+    
+                function saveHeadHeightClicked(textField)
+                {
+                headHeight = textField.value
+                postHttpRequest("setHeadHeight", {headHeight})
                 }   
                 
                 function saveGainSettingsClicked(textField1)
@@ -708,11 +744,35 @@ def toggleRobotPoseEnabled():
     remote_control_cozmo.disable_savepose_button()
     return to_js_bool_string(_is_save_pose_btn_enabled)
 
+
+@flask_app.route('/getUpdatedHeadHeight', methods=['POST'])
+def getUpdatedHeadHeight():
+    return str(remote_control_cozmo.cozmo.head_angle.degrees)
+
+
+@flask_app.route('/setHeadHeight', methods=['POST'])
+def handle_setHeadHeight():
+    message = json.loads(request.data.decode("utf-8"))
+    height = float(message['headHeight'])
+    if remote_control_cozmo:
+        remote_control_cozmo.cozmo.set_head_angle(degrees(height), accel=10.0, max_speed=10.0, duration=1,
+                                                            warn_on_clamp=True, in_parallel=True, num_retries=2).wait_for_completed()
+
+    return ""
+
+
+
 @flask_app.route('/saveRobotPose', methods=['POST'])
 def handle_saveRobotPose():
     pose = remote_control_cozmo.get_robot_pose()
+    remote_control_cozmo.cozmo.update_pose_history(pose)
     return {'Pose': str(pose)}
 
+
+@flask_app.route('/stopAllActions', methods=['POST'])
+def handle_stopAllActions():
+    remote_control_cozmo.stop_all_actions()
+    return ""
 
 @flask_app.route('/setHeadlightEnabled', methods=['POST'])
 def handle_setHeadlightEnabled():
@@ -796,7 +856,8 @@ def handle_save_image():
             # Scale the camera image down to fit on Cozmo's face
             # resized_image = latest_image.raw_image.resize(face_dimensions,
             #                                               Image.BICUBIC)
-            imwrite_path = f"./remote_control_saved_images/{file_name}"
+            date_timestamp = datetime.now().strftime('%m_%d')
+            imwrite_path = f"./remote_control_saved_images/{date_timestamp}/{file_name}"
             # imwrite_path = f"./remote_control_saved_images/{date_timestamp}_{file_name}"
             if file_name == "" or file_name is None:
                 date_timestamp = datetime.now().strftime('%m_%d_%H_%M_%S')
