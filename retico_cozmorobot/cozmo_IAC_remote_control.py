@@ -46,6 +46,8 @@ class ExperimentName(Enum):
 
     d = 'cozmo_clip_cos_split_and_learning_progress'  # include clip, split region by cos similarity, and adjust learning progress calculation
 
+    e = 'cozmo_clip_cos_sim_split_random_sampling'
+
 
 class CozmoIntelligentAdaptiveCuriosityRemoteControlModule(abstract.AbstractModule, tk.Frame):
     """
@@ -164,7 +166,7 @@ class CozmoIntelligentAdaptiveCuriosityRemoteControlModule(abstract.AbstractModu
 
                 if self.time_slept >= 200:
                     input_iu = ObjectPermanenceIU()
-                    input_iu.set_object_features(image=None, object_features={'0': [-1] * self.sensory_space_size})
+                    input_iu.set_payload(image=None, object_features={'0': [-1] * self.sensory_space_size})
                     self.time_slept = 0
 
                 else:
