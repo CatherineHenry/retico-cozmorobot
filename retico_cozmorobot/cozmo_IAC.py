@@ -1,13 +1,17 @@
 import asyncio
+import copy
 import os
+import pickle
 import sys
 import time
 import uuid
 from datetime import datetime
 from enum import Enum
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from PIL import ImageDraw
 from explauto import InterestModel, SensorimotorModel
 from explauto.agent import ReticoAgent
 
@@ -44,6 +48,8 @@ class ExperimentName(Enum):
 
     d = 'cozmo_clip_cos_split_and_learning_progress'  # include clip, split region by cos similarity, and adjust learning progress calculation
 
+    e = 'cozmo_clip_cos_sim_split_random_sampling'
+    f = 'cozmo_clip_cos_sim_split_with_region_deletion'
 
 class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame):
     """
@@ -67,8 +73,15 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
     def output_iu():
         return IACMotorAction
 
-    def __init__(self, robot: cozmo.robot.Robot, tk_root, date_timestamp, experiment_name, agent=None, save_data=False, execution_uuid=None, max_turn_count=0, **kwargs):
-    def __init__(self, robot: cozmo.robot.Robot, figs, date_timestamp, experiment_name, agent=None, save_data=False, execution_uuid=None, max_turn_count=0, **kwargs):
+    # def get_list_of_blocked_actions(self, nav_map, blocked_actions):
+    #     if nav_map.content in [NodeContentTypes.ClearOfObstacle, NodeContentTypes.ClearOfCliff]:
+    #         blocked_actions.append(nav_map.center)
+    #     if nav_map.children is not None:
+    #         for x in nav_map.children:
+    #             self.get_list_of_blocked_actions(x, blocked_actions)
+    #     return blocked_actions
+
+    def __init__(self, robot: cozmo.robot.Robot, figs, date_timestamp, experiment_name, agent=None, save_data=False, execution_uuid=None, max_turn_count=0, manual_control=True, rand_seed=None, **kwargs):
         super().__init__(**kwargs)
         self.num_ius_processed = 0
         self.robot = robot
@@ -87,26 +100,63 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
         self.configured_exposure_ms = 34.0
         self.execution_uuid = execution_uuid
         self.max_turn_count = max_turn_count
+        self.manual_control = manual_control
+
+        self.rand_seed = rand_seed if rand_seed is not None else np.random.randint(100000)
+        print(f"Random seed is {self.rand_seed}")
 
         if experiment_name == ExperimentName.a.value:  # without CLIP all we have is a T/F binary flag for if an obj is detected or not
             self.sensory_space_size = 1  # T or False binary value
         else:  # including CLIP
             # self.sensory_space_size = 384  #DINO SENSORY SPACE# TODO: add location info will consist of obj relative location + size feats concat w DINO output
-            self.sensory_space_size = 519  #CLIP SENSORY SPACE # TODO: add location info will consist of obj relative location + size feats concat w clip output (should be size 519 w pos feats, 512 w/o)
+            self.sensory_space_size = 519  #CLIP+ SENSORY SPACE
 
         if agent is None:
             print(f"Starting new execution with uuid {self.execution_uuid} and date {self.date_timestamp}")
             # m_mins = [-300, -200, -180]  # Cozmo Pose x,y (width and length of space + rotation) distance in mm # EDGE TO EDGE
             # m_maxs = [300, 200, 180]  # Cozmo Pose x,y + rotation distance in mm # EDGE TO EDGE
-            m_mins = [-250, -150, -180]  # Cozmo Pose x,y (width and length of space + rotation) distance in mm # SOME PADDING
-            m_maxs = [250, 150, 180]  # Cozmo Pose x,y + rotation distance in mm # SOME PADDING
-            # m_mins = [-130, -80]  # angle of rotation, backward linear travel. Zone out cube location
-            # m_maxs = [130, 80]  # angle of rotation, forward linear travel. Zone out cube location
+            ### m_mins = [-250, -150, -180]  # Cozmo Pose x,y (width and length of space + rotation) distance in mm # SOME PADDING
+            ### m_maxs = [250, 150, 180]  # Cozmo Pose x,y + rotation distance in mm # SOME PADDING
+            ## 9.8 x 5.9 inch (+/-) in exploration space # has been best so far 11/15
+            # m_mins = [-250, -150, -180]   # Cozmo Pose x,y (width and length of space + rotation) distance in mm # SOME PADDING
+            # m_maxs = [250, 150, 180]  # Cozmo Pose x,y + rotation distance in mm # SOME PADDING
+
+            # ## 18 x 12 in exploration space
+            # m_mins = [-500, -300, -180]   # Cozmo Pose x,y (width and length of space + rotation) distance in mm # SOME PADDING
+            # m_maxs = [500, 300, 180]  # Cozmo Pose x,y + rotation distance in mm # SOME PADDING
+            #
+            #
+            # ## 18 x 18 in exploration space
+            # m_mins = [-500, -500, -180]   # Cozmo Pose x,y (width and length of space + rotation) distance in mm # SOME PADDING
+            # m_maxs = [500, 500, 180]  # Cozmo Pose x,y + rotation distance in mm # SOME PADDING
+            #
+            # custom rectangle for exploration box
+            m_mins = [-600, -400, -180]   # Cozmo Pose x,y (width and length of space + rotation) distance in mm # SOME PADDING
+            m_maxs = [400, 400, 180]  # Cozmo Pose x,y + rotation distance in mm # SOME PADDING
+
+
 
 
 
             s_mins = [-1] * self.sensory_space_size  # -1 because 0 is a valid CLIP output
             s_maxs = [1] * self.sensory_space_size
+
+
+            # # was previously 350 to front wall
+            # fixed_object_front_wall = self.robot.world.create_custom_fixed_object(Pose(850, 0, 10, angle_z=degrees(0)),
+            #                                                                       10, 510, 20, relative_to_robot=False)
+            #
+            #
+            # # was previously 400mm to the back wall
+            # fixed_object_back_wall = self.robot.world.create_custom_fixed_object(Pose(-900, 0, 10, angle_z=degrees(0)),
+            #                                                                      10, 510, 20, relative_to_robot=False)
+            #
+            # # was previously 260mm from center to either side
+            # fixed_object_left_wall = self.robot.world.create_custom_fixed_object(Pose(-25, 800, 10, angle_z=degrees(0)),
+            #                                                                      760, 10, 20, relative_to_robot=False)
+            #
+            # fixed_object_right_wall = self.robot.world.create_custom_fixed_object(Pose(-25, -800, 10, angle_z=degrees(0)),
+            #                                                                       760, 10, 20, relative_to_robot=False)
 
             self.cozmo_env = CozmoEnvironment(
                 cozmo_robot=robot,
@@ -121,9 +171,8 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
             # self.sensorimotor_model = SensorimotorModel.from_configuration(self.cozmo_env.conf, 'NSLWLR-NONE', 'default')
             # Select Interest Model config based on Experiment
             config_name = experiment_name
-            # self.interest_model = InterestModel.from_configuration(self.cozmo_env.conf, self.cozmo_env.conf.m_dims, 'tree', config_name, robot_world=robot.world) # passing nav mem map here because we rely on pass by reference for dynamic updates.
-            self.interest_model = InterestModel.from_configuration(self.cozmo_env.conf, self.cozmo_env.conf.m_dims, 'tree', config_name, robot_nav_memory_map=robot.world.nav_memory_map) # passing nav mem map here because we rely on pass by reference for dynamic updates.
-            self.agent = ReticoAgent(self.cozmo_env.conf, self.sensorimotor_model, self.interest_model, execution_uuid=self.execution_uuid, execution_date_timestamp=self.date_timestamp, save_data=self.save_data, experiment_name=experiment_name)  # agent is necessary to avoid bootstrapping issues
+            self.interest_model = InterestModel.from_configuration(self.cozmo_env.conf, self.cozmo_env.conf.m_dims, 'tree', config_name, rand_seed=self.rand_seed) # passing nav mem map here because we rely on pass by reference for dynamic updates.
+            self.agent = ReticoAgent(self.cozmo_env.conf, self.sensorimotor_model, self.interest_model, execution_uuid=self.execution_uuid, execution_date_timestamp=self.date_timestamp, save_data=self.save_data, experiment_name=experiment_name, rand_seed=self.rand_seed)  # agent is necessary to avoid bootstrapping issues
 
         else:
             self.agent = agent
@@ -164,7 +213,7 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
 
                 if self.time_slept >= 200:
                     input_iu = ObjectPermanenceIU()
-                    input_iu.set_object_features(image=None, object_features={'0': [-1] * self.sensory_space_size})
+                    input_iu.set_payload(image=None, object_features={'0': [-1] * self.sensory_space_size})
                     self.time_slept = 0
 
                 else:
@@ -177,20 +226,27 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
             if isinstance(input_iu, ObjectPermanenceIU):
                 output_iu = self.create_iu(grounded_in=input_iu)
                 motor_action = input_iu.motor_action
-                objects = input_iu.payload
+                objects = input_iu.payload #object features
                 if len(objects) == 0:
                     print("Didn't get feature, setting to -1 and continuing.")
                     sensori_effect = [-1]*self.sensory_space_size
                     label = 'whitespace'
+                # # TODO: can change to use distance cozmo is from center + this distance and bound in the true exploration space
+                # # otherwise this technically allow for perceived objects max 10 inches outside of bounds
+                # elif input_iu.object_distance > 350: #381: # 15 inches # 254: # Make sure this matches the bounds in object permanence moduel too!
+                #     print(f"Object detected too far outside of exploration area ({input_iu.object_distance} mm), setting to -1 and continuing.")
+                #     sensori_effect = [-1]*self.sensory_space_size
+                #     label = 'whitespace'
                 else:
                     # self.add_perceived_object_to_map()
                     if self.sensory_space_size == 1: # ignore the CLIP output and flag as "1" for obj detected
                         sensori_effect = [1]
                     else:
-                        sensori_effect = input_iu.payload["0"][0]
+                        sensori_effect = input_iu.payload["0"][0] # object features
                     # If at a future point we care what YOLO thought it was, then pass that through and access using input_iu.grounded_in.grounded_in
                     # or pass it along
                     label = 'something'
+                    logger.log(logging.INFO, f"Something is {input_iu.object_distance}mm away")
 
                 inferred_sensori = self.agent.y
 
@@ -206,8 +262,30 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
 
                     sensori_df.to_csv(f'./IAC_output_data/sensori_effect_{self.date_timestamp}_{self.execution_uuid}_{self.experiment_shorthand_name}.csv', mode='a', index=False, header=False)
 
+                    # Using pickle instead of csv because I need the objects for easier rendering with the existing opengl implementation.
+                    offline_data_path = f'./IAC_output_data/{self.date_timestamp}/{self.execution_uuid}'
+                    Path(offline_data_path).mkdir(parents=True, exist_ok=True)
+                    with open(f'{offline_data_path}/motor_actions_{self.execution_uuid}.pickle', 'ab+') as file_handler:
+                        pickle.dump(self.robot.pose, file_handler)
+
+                    with open(f'{offline_data_path}/nav_memory_map_snapshots_{self.execution_uuid}.pickle', 'ab+') as file_handler:
+                        pickle.dump(self.robot.world.nav_memory_map, file_handler)
+
+                    with open(f'{offline_data_path}/seen_objects_{self.execution_uuid}.pickle', 'ab+') as file_handler:
+                        pickle.dump(list(copy.deepcopy(self.robot.world._objects).values()), file_handler)
+
+                    with open(f'{offline_data_path}/camera_view_{self.execution_uuid}.pickle', 'ab+') as file_handler:
+                        img_bbox = input_iu.grounded_in.image_bbox
+                        if img_bbox:
+                            draw = ImageDraw.Draw(input_iu.image) #this impacts the input iu image but I don't think we use it again so it's fine.
+                            draw.rectangle(((img_bbox['x1'], img_bbox['y1']), (img_bbox['x2'], img_bbox['y2'])), fill=None, outline='green')
+
+                        pickle.dump(input_iu.image, file_handler)
+
+
+
                 # inform the agent of the sensorimotor consequence of the action and update both the sensorimotor and interest models
-                self.agent.perceive(sensori_effect, flow_uuid=input_iu.flow_uuid)
+                self.agent.perceive(sensori_effect, flow_uuid=input_iu.flow_uuid, nav_memory_map=self.robot.world.nav_memory_map)
                 self.robot.camera.image_stream_enabled = True  # image stream is disabled in retico camera extractor (don't want images when turning)
                 time.sleep(0.2)  # will too short a delay result in no image to pop in camera IU?
 
@@ -227,9 +305,32 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
                     sys.exit()
 
                 flow_uuid4 = str(uuid.uuid4()).split("-")[0]
+                # run without manual motor goal no matter what so we can print what explauto _would have chosen_ (produce has logging in function so
+                # the inference/chosen motor action will be printed without further calls here)
                 motor_goal = self.agent.produce(flow_uuid=flow_uuid4)
 
-                self.cozmo_env.update(motor_goal, log=False)
+                if self.manual_control:
+                    logger.log(logging.INFO, "Cozmo is ready to drive")
+                    # logger.log(logging.INFO, f"[{self.execution_uuid}] Explauto motor goal: {self.agent.x}")
+                    # logger.log(logging.INFO, f"[{self.execution_uuid}] Explauto inference: {list(self.agent.y)}") # pass as a list so it doesn't wrap
+
+                    time.sleep(5)
+                    starting_pose = self.robot.pose.position.x_y_z
+                    while True:
+                        prior_pose = self.robot.pose
+                        time.sleep(5)
+                        # If the robot hasn't moved _at all_ don't break out of loop but if it has moved *and* is no longer moving, then break
+                        if starting_pose != self.robot.pose.position.x_y_z and self.robot.pose.position.x_y_z == prior_pose.position.x_y_z:
+                            break
+                    robot_pose = self.robot.pose
+                    # overwrite explauto picked motor goal with the manual one we picked
+                    motor_goal = np.array([robot_pose.position.x, robot_pose.position.y, robot_pose.rotation.angle_z.degrees])
+                    logger.log(logging.INFO, f"Using manual pose: {motor_goal}")
+                    self.agent.produce(flow_uuid=flow_uuid4, manual_choice=motor_goal)
+                else:
+                    # TODO: We don't get sensorimotor impact in this update in the way explauto expects, because we run clip processing as a separate
+                    #  retico IU. All we do is move to the motor goal.
+                    self.cozmo_env.update(motor_goal, log=False)
 
                 output_iu.set_motor_action(motor_action=motor_goal, flow_uuid=flow_uuid4, execution_uuid=self.execution_uuid)
                 um = retico_core.UpdateMessage.from_iu(output_iu, retico_core.UpdateType.ADD)
@@ -237,12 +338,47 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
                 self.num_ius_processed += 1
 
     def prepare_run(self):
+        # input("Press enter once head height is configured...")
+        print(f"head angle: {self.robot.head_angle}")
+        # i = 0
+        # while i < 30:
+        #     time.sleep(1)
+        #     i+=1
+        #     print(f"head angle: {self.robot.head_angle}")
         # `produce` calls `sample()` method on interest model then uses the sensorimotor model to obtain sensorimotor
         # vector using forward prediction (if motor babbling). Returns the motor part of the full sensorimotor vector.
         flow_uuid4 = str(uuid.uuid4()).split("-")[0]
-        motor_goal = self.agent.produce(flow_uuid=flow_uuid4)
-        # Execute the motor goal. We cannot get the sensori effect yet.
-        self.cozmo_env.update(motor_goal, log=False)
+        # initial motor goal is just where the robot is, this is because we need to perceive to get our first nav_memory_map to sample from
+        motor_goal = np.array([self.robot.pose.position.x, self.robot.pose.position.y, self.robot.pose.rotation.angle_z.degrees])
+        self.agent.produce(flow_uuid=flow_uuid4, manual_choice=motor_goal)
+
+
+        # # run without manual motor goal no matter what so we can print what explauto _would have chosen_ with the information available
+        # motor_goal = self.agent.produce(flow_uuid=flow_uuid4)
+
+        if self.manual_control:
+            logger.log(logging.INFO, "Cozmo is ready to drive")
+            # logger.log(logging.INFO, f"[{self.execution_uuid}] Explauto motor goal: {self.agent.x}")
+            # logger.log(logging.INFO, f"[{self.execution_uuid}] Explauto inference: {list(self.agent.y)}") # pass as a list so it doesn't wrap
+
+            time.sleep(5)
+            starting_pose = self.robot.pose.position.x_y_z
+            while True:
+                prior_pose = self.robot.pose
+                time.sleep(5)
+                # If the robot hasn't moved _at all_ don't break out of loop but if it has moved *and* is no longer moving, then break
+                if starting_pose != self.robot.pose.position.x_y_z and self.robot.pose.position.x_y_z == prior_pose.position.x_y_z:
+                    break
+            robot_pose = self.robot.pose
+            # overwrite explauto picked motor goal with the manual one we picked
+            motor_goal = np.array([robot_pose.position.x, robot_pose.position.y, robot_pose.rotation.angle_z.degrees])
+            logger.log(logging.INFO, f"Using manual pose: {motor_goal}")
+            # this sets up the inference  as well, so just pass our motor goal instead of choosing
+            self.agent.produce(flow_uuid=flow_uuid4, manual_choice=motor_goal)
+
+        else:
+            # Execute the motor goal. We cannot get the sensori effect yet.
+            self.cozmo_env.update(motor_goal, log=False)
 
         output_iu = self.create_iu(grounded_in=None)
         output_iu.set_motor_action(motor_action=motor_goal, flow_uuid=flow_uuid4, execution_uuid=self.execution_uuid)
