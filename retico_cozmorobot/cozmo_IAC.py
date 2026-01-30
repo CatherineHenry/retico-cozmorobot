@@ -202,22 +202,23 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
         # take in feature, update learning. output new action, this should kick off camera which will result in new feature input
         # first feature should just be whatever action 0 was, or maybe just throw away first and do action
         while self._extractor_thread_active:
+            time.sleep(0.05)
             if len(self.queue) == 0:
-                time.sleep(0.5)
                 continue
 
-            if len(self.queue) == 0:
-                time.sleep(0.5)
-                self.time_slept += 0.5
+            # if len(self.queue) == 0:
+            #     time.sleep(0.5)
+                # self.time_slept += 0.5
                 # continue
 
-                if self.time_slept >= 200:
-                    input_iu = ObjectPermanenceIU()
-                    input_iu.set_payload(image=None, object_features={'0': [-1] * self.sensory_space_size})
-                    self.time_slept = 0
-
-                else:
-                    continue
+                # TODO: why do I have this?
+                # if self.time_slept >= 200:
+                #     input_iu = ObjectPermanenceIU()
+                #     input_iu.set_payload(image=None, object_features={'0': [-1] * self.sensory_space_size})
+                #     self.time_slept = 0
+                #
+                # else:
+                #     continue
 
             else:
                 input_iu = self.queue.popleft()
@@ -226,8 +227,9 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
             if isinstance(input_iu, ObjectPermanenceIU):
                 output_iu = self.create_iu(grounded_in=input_iu)
                 motor_action = input_iu.motor_action
-                objects = input_iu.payload #object features
-                if len(objects) == 0:
+                object_features = input_iu.grounded_in.grounded_in.payload #object features
+                # If an object was detected but too far away, object features would have data but the Object Detection payload should be empty
+                if len(input_iu.grounded_in.payload) == 0:
                     print("Didn't get feature, setting to -1 and continuing.")
                     sensori_effect = [-1]*self.sensory_space_size
                     label = 'whitespace'
@@ -242,11 +244,11 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
                     if self.sensory_space_size == 1: # ignore the CLIP output and flag as "1" for obj detected
                         sensori_effect = [1]
                     else:
-                        sensori_effect = input_iu.payload["0"][0] # object features
+                        sensori_effect = object_features[0][0] # object features
                     # If at a future point we care what YOLO thought it was, then pass that through and access using input_iu.grounded_in.grounded_in
                     # or pass it along
                     label = 'something'
-                    logger.log(logging.INFO, f"Something is {input_iu.object_distance}mm away")
+                    logger.log(logging.INFO, f"Something is {input_iu.payload['distance_mm']}mm away")
 
                 inferred_sensori = self.agent.y
 
@@ -275,9 +277,9 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
                         pickle.dump(list(copy.deepcopy(self.robot.world._objects).values()), file_handler)
 
                     with open(f'{offline_data_path}/camera_view_{self.execution_uuid}.pickle', 'ab+') as file_handler:
-                        img_bbox = input_iu.grounded_in.image_bbox
+                        img_bbox = input_iu.grounded_in.grounded_in.image_bbox
                         if img_bbox:
-                            draw = ImageDraw.Draw(input_iu.image) #this impacts the input iu image but I don't think we use it again so it's fine.
+                            draw = ImageDraw.Draw(input_iu.grounded_in.grounded_in.image) #this impacts the input iu image but I don't think we use it again so it's fine.
                             draw.rectangle(((img_bbox['x1'], img_bbox['y1']), (img_bbox['x2'], img_bbox['y2'])), fill=None, outline='green')
 
                         pickle.dump(input_iu.image, file_handler)
