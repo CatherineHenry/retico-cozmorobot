@@ -24,7 +24,6 @@ from cozmo.util import Pose, degrees, Angle, distance_mm, speed_mmps
 
 import retico_core
 from retico_core import abstract, UpdateType
-from retico_cozmorobot.cozmo_state import RobotStateIU
 from retico_core.robot import IACMotorAction
 from retico_vision.vision import ObjectFeaturesIU, ObjectPermanenceIU
 
@@ -67,7 +66,7 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
 
     @staticmethod
     def input_ius():
-        return [RobotStateIU, ObjectFeaturesIU, ObjectPermanenceIU]
+        return [ObjectPermanenceIU]
 
     @staticmethod
     def output_iu():
@@ -229,7 +228,7 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
                 motor_action = input_iu.motor_action
                 object_features = input_iu.grounded_in.grounded_in.payload #object features
                 # If an object was detected but too far away, object features would have data but the Object Detection payload should be empty
-                if len(input_iu.grounded_in.payload) == 0:
+                if len(input_iu.payload) == 0:
                     print("Didn't get feature, setting to -1 and continuing.")
                     sensori_effect = [-1]*self.sensory_space_size
                     label = 'whitespace'
@@ -248,7 +247,7 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
                     # If at a future point we care what YOLO thought it was, then pass that through and access using input_iu.grounded_in.grounded_in
                     # or pass it along
                     label = 'something'
-                    logger.log(logging.INFO, f"Something is {input_iu.payload['distance_mm']}mm away")
+                    logger.log(logging.INFO, f"Something is {input_iu.grounded_in.payload['distance_mm']}mm away")
 
                 inferred_sensori = self.agent.y
 
@@ -277,12 +276,12 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
                         pickle.dump(list(copy.deepcopy(self.robot.world._objects).values()), file_handler)
 
                     with open(f'{offline_data_path}/camera_view_{self.execution_uuid}.pickle', 'ab+') as file_handler:
-                        img_bbox = input_iu.grounded_in.grounded_in.image_bbox
+                        img_bbox = input_iu.grounded_in.grounded_in.grounded_in.image_bbox
                         if img_bbox:
-                            draw = ImageDraw.Draw(input_iu.grounded_in.grounded_in.image) #this impacts the input iu image but I don't think we use it again so it's fine.
+                            draw = ImageDraw.Draw(input_iu.grounded_in.grounded_in.grounded_in.image) #this impacts the input iu image but I don't think we use it again so it's fine.
                             draw.rectangle(((img_bbox['x1'], img_bbox['y1']), (img_bbox['x2'], img_bbox['y2'])), fill=None, outline='green')
 
-                        pickle.dump(input_iu.image, file_handler)
+                        pickle.dump(input_iu.grounded_in.grounded_in.grounded_in.image, file_handler)
 
 
 
