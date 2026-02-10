@@ -95,11 +95,9 @@ class CozmoCameraModule(retico_core.AbstractModule):
                 continue
 
             input_iu = self.queue.popleft()
-            try:
-                img = self.img_queue.popleft()
-            except IndexError:
-                time.sleep(1)
-                img = self.img_queue.popleft()
+            while len(self.img_queue) < 1:
+                time.sleep(0.05)
+            img = self.img_queue.popleft()
             # img = np.array(img)
             output_iu = self.create_iu(input_iu)
             # img = np.array(img)
