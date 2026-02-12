@@ -5,10 +5,10 @@ import threading
 
 # retico
 import retico_core
-from retico_core.robot import IACMotorAction
+from retico_core.robot import IACMotorGoalIU, RobotStateIU
+from retico_cozmorobot.initialize_cozmo_IAC_module import IACInitializationIU
 from retico_vision.vision import ImageIU
 
-sys.path.append(os.environ['COZMO'])
 import cozmo
 import time
 
@@ -30,7 +30,7 @@ class CozmoCameraModule(retico_core.AbstractModule):
 
     @staticmethod
     def input_ius():
-        return [IACMotorAction]
+        return [RobotStateIU]
 
     @staticmethod
     def output_iu():
@@ -69,9 +69,6 @@ class CozmoCameraModule(retico_core.AbstractModule):
             img = self.img_queue.popleft()
             output_iu = self.create_iu(input_iu)
             output_iu.set_image(img, 1, 1)
-            output_iu.set_flow_uuid(input_iu.flow_uuid)
-            output_iu.set_execution_uuid(input_iu.execution_uuid)
-            output_iu.set_motor_action(input_iu.motor_action)
             self.robot.camera.image_stream_enabled = False
             um = retico_core.UpdateMessage.from_iu(output_iu, retico_core.UpdateType.ADD)
             self.append(um)
@@ -97,7 +94,6 @@ class CozmoCameraModule(retico_core.AbstractModule):
         # Setting twice, I've found that sometimes the first set doesn't reliably apply
         self.robot.camera.set_manual_exposure(trimmed_exposure,trimmed_gain)
         print(f"[After Setting] Exposure: {self.robot.camera.exposure_ms}, Gain: {self.robot.camera.gain}")
-
 
 
     def prepare_run(self):
