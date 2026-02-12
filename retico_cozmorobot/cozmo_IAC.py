@@ -16,7 +16,7 @@ import retico_core
 from helper_funcs import get_first_instance_of_target_grounded_iu
 from retico_core import abstract, UpdateType
 from retico_core.robot import IACMotorGoalIU, RobotStateIU
-from retico_cozmorobot.initialize_cozmo_IAC_module import IACInitializationIU
+from retico_cozmorobot.initialize_cozmo_IAC import IACInitializationIU
 from retico_vision import CozmoNavigationMemoryMapIU, ObjectFeaturesIU, ObjectPermanenceIU
 
 

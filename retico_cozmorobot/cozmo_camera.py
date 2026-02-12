@@ -5,8 +5,7 @@ import threading
 
 # retico
 import retico_core
-from retico_core.robot import IACMotorGoalIU, RobotStateIU
-from retico_cozmorobot.initialize_cozmo_IAC_module import IACInitializationIU
+from retico_core.robot import RobotStateIU
 from retico_vision.vision import ImageIU
 
 import cozmo
