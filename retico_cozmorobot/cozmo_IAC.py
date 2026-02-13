@@ -233,7 +233,6 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
             motor_goal = self.agent.produce(flow_uuid=flow_uuid)
 
         output_iu.set_payload(motor_goal=motor_goal)
-        # output_iu.set_flow_uuid(flow_uuid=flow_uuid4)
         output_iu.meta_data['flow_uuid'] = flow_uuid
 
         um = retico_core.UpdateMessage.from_iu(output_iu, retico_core.UpdateType.ADD)

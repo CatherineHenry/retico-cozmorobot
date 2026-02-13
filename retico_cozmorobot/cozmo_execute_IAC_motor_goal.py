@@ -112,12 +112,8 @@ class CozmoExecuteIACMotorGoalModule(retico_core.AbstractModule):
                 # Saving the robot pose just exacerbates to the rotation error already present
                 pickle.dump(self.robot.pose, file_handler)
 
-        output_iu = self.create_iu(input_iu)
-        output_iu.set_state(input_iu.payload) # pass the goal along as the new robot state
-        # output_iu.meta_data['flow_uuid'] =
-        # output_iu.set_flow_uuid(input_iu.flow_uuid)
-        # output_iu.set_execution_uuid(input_iu.execution_uuid)
-        # output_iu.set_motor_action(input_iu.motor_action)
+        # Either pass the goal along as the new robot state, or the resulting pose of any manual movement
+        output_iu.set_state(motor_goal)
         um = retico_core.UpdateMessage.from_iu(output_iu, retico_core.UpdateType.ADD)
         self.append(um)
 
