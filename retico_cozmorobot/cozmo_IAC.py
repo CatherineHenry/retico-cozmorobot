@@ -13,8 +13,8 @@ from explauto.agent import ReticoAgent
 from explauto.environment.cozmo_env import CozmoEnvironment
 
 import retico_core
-from helper_funcs import get_first_instance_of_target_grounded_iu
 from retico_core import abstract, UpdateType
+from retico_core.helper_funcs import get_first_instance_of_target_grounded_iu
 from retico_core.robot import IACMotorGoalIU, RobotStateIU
 from retico_cozmorobot.initialize_cozmo_IAC import IACInitializationIU
 from retico_vision import CozmoNavigationMemoryMapIU, ObjectFeaturesIU, ObjectPermanenceIU
@@ -161,6 +161,7 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
         for input_iu, update_type in update_message:
             if update_type != UpdateType.ADD:
                 continue
+        flow_uuid = input_iu.meta_data.get('flow_uuid')
         output_iu = self.create_iu(grounded_in=input_iu)
         # could go by flow ID, but we need the init IU anyway to pass the payload forward
         if isinstance(input_iu, IACInitializationIU):
@@ -174,20 +175,19 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
             }
             # TODO: should I pass the input as output for this first run so it is run through the entire pipeline
             motor_goal = input_iu.payload
-            flow_uuid = input_iu.flow_uuid
             # We kick off execution with the robot's initial state as the motor goal
             # Because of the break in movement/perception due to our perception being tied to an IU output (cozmo cam)
             # and sending data from client/server, we cannot have the agent produce an action _and_ perceive in the same
             # run, there would be no updated sensory data to perceive.
             # Calling produce is still important here as it sets variables we use downstream.
-            self.agent.produce(flow_uuid=input_iu.flow_uuid, manual_choice=motor_goal)
+            self.agent.produce(flow_uuid=flow_uuid, manual_choice=motor_goal)
 
         else:
             grounded_motor_action_iu = get_first_instance_of_target_grounded_iu(input_iu, [RobotStateIU])
             # TODO: does this work here?
             if self.manual_control:
                 # See what the model would have predicted for the manual motor action
-                self.agent.produce(flow_uuid=input_iu.flow_uuid, manual_choice=grounded_motor_action_iu.payload)
+                self.agent.produce(flow_uuid=flow_uuid, manual_choice=grounded_motor_action_iu.payload)
 
             grounded_object_features_iu = get_first_instance_of_target_grounded_iu(input_iu, [ObjectFeaturesIU]) #object features
             grounded_object_permanence_iu = get_first_instance_of_target_grounded_iu(input_iu, [ObjectPermanenceIU]) #object permanence
@@ -221,7 +221,7 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
                 sensori_df.to_csv(f'./IAC_output_data/sensori_effect_{self.date_timestamp}_{self.execution_uuid}_{self.experiment_shorthand_name}.csv', mode='a', index=False, header=False)
 
             # inform the agent of the sensorimotor consequence of the action and update both the sensorimotor and interest models
-            self.agent.perceive(sensori_effect, flow_uuid=input_iu.flow_uuid, nav_memory_map=input_iu.payload)
+            self.agent.perceive(sensori_effect, flow_uuid=flow_uuid, nav_memory_map=input_iu.payload)
 
             turn_count = len(self.interest_model.data_x)
             # We've completed max number of turns, save the model and exit

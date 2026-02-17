@@ -1,4 +1,5 @@
 # retico
+import logging
 import pickle
 import time
 from pathlib import Path
@@ -8,9 +9,6 @@ from explauto.environment.cozmo_env import CozmoEnvironment
 
 import retico_core
 from retico_core.robot import IACMotorGoalIU, RobotStateIU
-from retico_vision import ObjectPermanenceIU
-from retico_vision.vision import CozmoNavigationMemoryMapIU
-import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -48,7 +46,7 @@ class CozmoExecuteIACMotorGoalModule(retico_core.AbstractModule):
                 continue
 
         output_iu = self.create_iu(input_iu)
-        #TODO: check if need to initialize cozmo env.
+        motor_goal = input_iu.payload
         if 'init_cozmo_env' in input_iu.meta_data.keys():
             self.cozmo_iac_env = CozmoEnvironment(
                 cozmo_robot=self.robot,
@@ -57,6 +55,7 @@ class CozmoExecuteIACMotorGoalModule(retico_core.AbstractModule):
                 s_mins=input_iu.meta_data['init_cozmo_env']['s_mins'],
                 s_maxs=input_iu.meta_data['init_cozmo_env']['s_maxs'],
             )
+            # delete init_cozmo_env from metadata so we don't make new CozmoEnvironment each time
             del output_iu.meta_data['init_cozmo_env']
 
         self.robot.camera.image_stream_enabled = True  # image stream is disabled in retico camera extractor (don't want images when turning)
@@ -99,11 +98,11 @@ class CozmoExecuteIACMotorGoalModule(retico_core.AbstractModule):
             # Execute the motor goal. We cannot get the sensori effect yet.
             self.cozmo_iac_env.update(input_iu.payload, log=False)
 
-        # Save data if IU type is IACMotorGoalIU (not IACInitializationIU).
-        # This ensures we have the date timestamp and execution uuid from server (in case agent was loaded)
-        if isinstance(input_iu, IACMotorGoalIU):
+        if input_iu.meta_data.get('save_data'):
             execution_uuid = input_iu.meta_data['execution_uuid']
             date_timestamp = input_iu.meta_data['date_timestamp']
+            # TODO: why is execution_uuid none?
+            # TODO: only save if save_data is True
             # Using pickle instead of csv because I need the objects for easier rendering with the existing opengl implementation.
             offline_data_path = f'./IAC_output_data/{date_timestamp}/{execution_uuid}'
             Path(offline_data_path).mkdir(parents=True, exist_ok=True)

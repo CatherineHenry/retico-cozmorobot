@@ -55,6 +55,8 @@ class CozmoRemoteControlModule(retico_core.AbstractModule):
                 continue
 
             input_iu = self.queue.popleft()
+            execution_uuid = input_iu.meta_data.get('execution_uuid')
+            flow_uuid = input_iu.meta_data('flow_uuid')
             output_iu = self.create_iu(input_iu)
 
             # Re-enable image stream, this might cause issues with popping an image from queue that was from time moving
@@ -67,7 +69,7 @@ class CozmoRemoteControlModule(retico_core.AbstractModule):
             robot_pose = self.remote_control_cozmo.pose_queue.popleft()
             # x,y (width and length of space + rotation) (ndarray to align with iu used in other executions)
             motor_action = np.array([robot_pose.position.x, robot_pose.position.y, robot_pose.rotation.angle_z.degrees])
-            output_iu.set_motor_action(motor_action=motor_action, flow_uuid=input_iu.flow_uuid, execution_uuid=input_iu.execution_uuid)
+            output_iu.set_motor_action(motor_action=motor_action, flow_uuid=flow_uuid, execution_uuid=execution_uuid)
             um = retico_core.UpdateMessage.from_iu(output_iu, retico_core.UpdateType.ADD)
             self.append(um)
         return None

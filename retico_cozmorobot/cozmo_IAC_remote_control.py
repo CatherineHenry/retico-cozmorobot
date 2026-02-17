@@ -174,6 +174,7 @@ class CozmoIntelligentAdaptiveCuriosityRemoteControlModule(abstract.AbstractModu
 
             else:
                 input_iu = self.queue.popleft()
+
                 self.time_slept = 0
             # when new objects are observed (i.e., not SpeechRecognitionIUs)
             if isinstance(input_iu, ObjectPermanenceIU):
