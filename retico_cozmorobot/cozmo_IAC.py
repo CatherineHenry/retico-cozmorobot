@@ -81,31 +81,24 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
     def setup_iac(self, grounded_motor_action_iu):
         iu_meta_data = grounded_motor_action_iu.meta_data
         self.save_data = iu_meta_data['save_data']
-        self.execution_uuid = iu_meta_data['execution_uuid']
-        self.max_turn_count = iu_meta_data['max_turn_count']
-        self.manual_control = iu_meta_data['manual_control']
+        self.max_turn_count = iu_meta_data.get('max_turn_count')
+        self.manual_control = iu_meta_data.get('manual_control')
+        # If we are loading a prior execution, the execution_uuid will already be set
+        self.execution_uuid = iu_meta_data.get('execution_uuid')
 
-        if self.execution_uuid: # If an execution ID was included, we are loading a prior execution
+        # If an execution ID was included, we are loading a prior execution
+        if self.execution_uuid:
             print(f"Loading prior execution with uuid {self.execution_uuid} and date {self.date_timestamp}. Continuing with experiment '{self.experiment_name}'")
             with open(f'./IAC_output_data/agent_{self.execution_uuid}.pickle', 'rb') as f:
                 self.agent = pickle.load(f)
             self.date_timestamp = self.agent.execution_date_timestamp
             self.experiment_name = self.agent.experiment_name  # override experiment with whatever was used in the loaded model
-            self.execution_uuid = self.agent.execution_uuid
             self.rand_seed = self.agent.rand_seed
-            # TODO: Doesn't look like I need this if we load an agent
-            # self.cozmo_env = CozmoEnvironment(
-            #     cozmo_robot=None, # Can only manage robot on the client side
-            #     m_mins=self.agent.conf.m_mins,
-            #     m_maxs=self.agent.conf.m_maxs,
-            #     s_mins=self.agent.conf.s_mins,
-            #     s_maxs=self.agent.conf.s_maxs,
-            # )
-
             self.interest_model = self.agent.interest_model
             self.sensorimotor_model = self.agent.sensorimotor_model
 
-        else: # Starting a fresh execution
+        # Starting a fresh execution
+        else:
             print(f"Starting new execution with uuid {self.execution_uuid} and date {self.date_timestamp}")
             self.experiment_name = iu_meta_data['experiment_name'] # TODO: move to if an agent was not loaded
             self.experiment_shorthand_name = ExperimentName(self.experiment_name).name
@@ -132,9 +125,9 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
             m_mins = [-100, -100, -180]   # Cozmo Pose x,y (width and length of space + rotation) distance in mm # SOME PADDING
             m_maxs = [100, 100, 180]  # Cozmo Pose x,y + rotation distance in mm # SOME PADDING
 
-
             s_mins = [-1] * sensory_space_size  # -1 because 0 is a valid CLIP output
             s_maxs = [1] * sensory_space_size
+
             # cozmo_env is init both server _and_ client side, the client side will have access to the robot instance
             # to perform movements. **Only used for conf value on server!**. We pass the values to init from server so
             # they are guaranteed using the same data.
@@ -161,8 +154,11 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
         for input_iu, update_type in update_message:
             if update_type != UpdateType.ADD:
                 continue
-        flow_uuid = input_iu.meta_data.get('flow_uuid')
         output_iu = self.create_iu(grounded_in=input_iu)
+        # read flow_uuid from input_iu and use to complete the remaining perception steps now that we have the sensory
+        # data available.
+        # Will make a new a flow_uuid at the end when we produce the next motor action
+        flow_uuid = input_iu.meta_data.get('flow_uuid')
         # could go by flow ID, but we need the init IU anyway to pass the payload forward
         if isinstance(input_iu, IACInitializationIU):
             self.setup_iac(input_iu)
@@ -198,7 +194,6 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
                 label = 'whitespace'
             else:
                 if self.sensorimotor_model.conf.s_ndims == 1: # ignore the CLIP output and flag as "1" for obj detected
-                    # if self.sensory_space_size == 1: # ignore the CLIP output and flag as "1" for obj detected
                     sensori_effect = [1]
                 else:
                     sensori_effect = grounded_object_features_iu.payload[0][0] # object features
@@ -215,7 +210,7 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
                 sensori_df.insert(0, 'experiment_name', self.experiment_name)
                 sensori_df.insert(0, 'sensori_type', ['effect', 'inferred'])
                 sensori_df.insert(0, 'obj_name', [label]*2)
-                sensori_df.insert(0, 'flow_uuid', [input_iu.meta_data['flow_uuid']]*2)
+                sensori_df.insert(0, 'flow_uuid', [flow_uuid]*2)
                 sensori_df.insert(0, 'exec_uuid', [self.execution_uuid]*2)
 
                 sensori_df.to_csv(f'./IAC_output_data/sensori_effect_{self.date_timestamp}_{self.execution_uuid}_{self.experiment_shorthand_name}.csv', mode='a', index=False, header=False)
@@ -229,6 +224,7 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
                 self.agent.save(f"./IAC_output_data/agent_{self.execution_uuid}.pickle")
                 sys.exit()
 
+            # set new flow uuid for the new motor action
             flow_uuid = str(uuid.uuid4()).split("-")[0]
             motor_goal = self.agent.produce(flow_uuid=flow_uuid)
 
