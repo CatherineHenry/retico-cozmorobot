@@ -5,6 +5,7 @@ import tkinter as tk
 import uuid
 from datetime import datetime
 from enum import Enum
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -35,6 +36,7 @@ class ExperimentName(Enum):
 
     e = 'cozmo_clip_cos_sim_split_random_sampling'
     f = 'cozmo_clip_cos_sim_split_with_region_deletion'
+    g = 'cozmo_clip_cos_sim_split_progressive_splits'
 
 class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame):
     """
@@ -88,10 +90,10 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
 
         # If an execution ID was included, we are loading a prior execution
         if self.execution_uuid:
-            print(f"Loading prior execution with uuid {self.execution_uuid} and date {self.date_timestamp}. Continuing with experiment '{self.experiment_name}'")
-            with open(f'./IAC_output_data/agent_{self.execution_uuid}.pickle', 'rb') as f:
-                self.agent = pickle.load(f)
             self.date_timestamp = self.agent.execution_date_timestamp
+            with open(f'./IAC_output_data/{self.date_timestamp}/agent_{self.execution_uuid}.pickle', 'rb') as f:
+                self.agent = pickle.load(f)
+            print(f"Loading prior execution with uuid {self.execution_uuid} and date {self.date_timestamp}. Continuing with experiment '{self.experiment_name}'")
             self.experiment_name = self.agent.experiment_name  # override experiment with whatever was used in the loaded model
             self.rand_seed = self.agent.rand_seed
             self.interest_model = self.agent.interest_model
@@ -99,11 +101,11 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
 
         # Starting a fresh execution
         else:
+            self.execution_uuid = str(uuid.uuid4()).split("-")[0]
+            self.date_timestamp = datetime.now().strftime('%m_%d')
             print(f"Starting new execution with uuid {self.execution_uuid} and date {self.date_timestamp}")
             self.experiment_name = iu_meta_data['experiment_name'] # TODO: move to if an agent was not loaded
             self.experiment_shorthand_name = ExperimentName(self.experiment_name).name
-            self.execution_uuid = str(uuid.uuid4()).split("-")[0]
-            self.date_timestamp = datetime.now().strftime('%m_%d')
             self.rand_seed = np.random.randint(100000)
 
             if self.experiment_name == ExperimentName.a.value:
@@ -145,9 +147,11 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
 
             # Select Interest Model config based on Experiment
             config_name = self.experiment_name
-            self.interest_model = InterestModel.from_configuration(cozmo_env.conf, cozmo_env.conf.m_dims, 'tree', config_name, rand_seed=self.rand_seed) # passing nav mem map here because we rely on pass by reference for dynamic updates.
+            self.interest_model = InterestModel.from_configuration(cozmo_env.conf, cozmo_env.conf.m_dims, 'tree', config_name, rand_seed=self.rand_seed, max_turn_count=self.max_turn_count) # passing nav mem map here because we rely on pass by reference for dynamic updates.
             self.agent = ReticoAgent(cozmo_env.conf, self.sensorimotor_model, self.interest_model, execution_uuid=self.execution_uuid, execution_date_timestamp=self.date_timestamp, save_data=self.save_data, experiment_name=self.experiment_name, rand_seed=self.rand_seed)  # agent is necessary to avoid bootstrapping issues
 
+
+        Path(f"IAC_output_data/{self.date_timestamp}").mkdir(parents=True, exist_ok=True)
         print(f"Random seed is {self.rand_seed}")
 
     def process_update(self, update_message):
@@ -163,6 +167,9 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
         if isinstance(input_iu, IACInitializationIU):
             self.setup_iac(input_iu)
             output_iu.meta_data['date_timestamp'] = self.date_timestamp
+            # If the execution_uuid was None when we started, we need to set it to the new UUID
+            # If one was set to run a prior execution this will just overwrite with the same execution_uuid as before
+            output_iu.meta_data['execution_uuid'] = self.execution_uuid
             output_iu.meta_data['init_cozmo_env'] = {
                 'm_mins': self.sensorimotor_model.conf.m_mins,
                 'm_maxs': self.sensorimotor_model.conf.m_maxs,
@@ -204,7 +211,7 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
 
             inferred_sensori = self.agent.y
             if self.save_data:
-                sensori_df = pd.DataFrame.from_records([np.hstack([grounded_motor_action_iu.payload, sensori_effect]), np.hstack([grounded_motor_action_iu, inferred_sensori])])
+                sensori_df = pd.DataFrame.from_records([np.hstack([grounded_motor_action_iu.payload, sensori_effect]), np.hstack([grounded_motor_action_iu.payload, inferred_sensori])])
                 sensori_df.insert(0, 'expl_dims', [len(self.agent.expl_dims)]*2)
                 sensori_df.insert(0, 'inf_dims', [len(self.agent.inf_dims)]*2)
                 sensori_df.insert(0, 'experiment_name', self.experiment_name)
@@ -213,7 +220,7 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
                 sensori_df.insert(0, 'flow_uuid', [flow_uuid]*2)
                 sensori_df.insert(0, 'exec_uuid', [self.execution_uuid]*2)
 
-                sensori_df.to_csv(f'./IAC_output_data/sensori_effect_{self.date_timestamp}_{self.execution_uuid}_{self.experiment_shorthand_name}.csv', mode='a', index=False, header=False)
+                sensori_df.to_csv(f'./IAC_output_data/{self.date_timestamp}/sensori_effect_{self.execution_uuid}_{self.experiment_shorthand_name}.csv', mode='a', index=False, header=False)
 
             # inform the agent of the sensorimotor consequence of the action and update both the sensorimotor and interest models
             self.agent.perceive(sensori_effect, flow_uuid=flow_uuid, nav_memory_map=input_iu.payload)
@@ -221,7 +228,8 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
             turn_count = len(self.interest_model.data_x)
             # We've completed max number of turns, save the model and exit
             if self.max_turn_count != 0 and turn_count == self.max_turn_count:
-                self.agent.save(f"./IAC_output_data/agent_{self.execution_uuid}.pickle")
+                self.agent.save(f"./IAC_output_data/{self.date_timestamp}/agent_{self.execution_uuid}.pickle")
+                print(f"Successfully ran {self.max_turn_count} actions. Saved agent and quitting program.")
                 sys.exit()
 
             # set new flow uuid for the new motor action
