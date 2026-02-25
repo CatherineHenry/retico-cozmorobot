@@ -95,6 +95,7 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
                 self.agent = pickle.load(f)
             print(f"Loading prior execution with uuid {self.execution_uuid} and date {self.date_timestamp}. Continuing with experiment '{self.experiment_name}'")
             self.experiment_name = self.agent.experiment_name  # override experiment with whatever was used in the loaded model
+            self.experiment_shorthand_name = ExperimentName(self.experiment_name).name
             self.rand_seed = self.agent.rand_seed
             self.interest_model = self.agent.interest_model
             self.sensorimotor_model = self.agent.sensorimotor_model
@@ -220,7 +221,7 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
                 sensori_df.insert(0, 'flow_uuid', [flow_uuid]*2)
                 sensori_df.insert(0, 'exec_uuid', [self.execution_uuid]*2)
 
-                sensori_df.to_csv(f'./IAC_output_data/{self.date_timestamp}/sensori_effect_{self.execution_uuid}_{self.experiment_shorthand_name}.csv', mode='a', index=False, header=False)
+                sensori_df.to_csv(f'./IAC_output_data/{self.date_timestamp}/sensori_effect_{self.execution_uuid}.csv', mode='a', index=False, header=False)
 
             # inform the agent of the sensorimotor consequence of the action and update both the sensorimotor and interest models
             self.agent.perceive(sensori_effect, flow_uuid=flow_uuid, nav_memory_map=input_iu.payload)
