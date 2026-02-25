@@ -90,7 +90,7 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
 
         # If an execution ID was included, we are loading a prior execution
         if self.execution_uuid:
-            self.date_timestamp = self.agent.execution_date_timestamp
+            self.date_timestamp = iu_meta_data.get('date_timestamp')
             with open(f'./IAC_output_data/{self.date_timestamp}/agent_{self.execution_uuid}.pickle', 'rb') as f:
                 self.agent = pickle.load(f)
             print(f"Loading prior execution with uuid {self.execution_uuid} and date {self.date_timestamp}. Continuing with experiment '{self.experiment_name}'")
