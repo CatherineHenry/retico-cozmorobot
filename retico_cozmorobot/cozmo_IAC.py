@@ -20,6 +20,8 @@ from retico_core.robot import IACMotorGoalIU, RobotStateIU
 from retico_cozmorobot.initialize_cozmo_IAC import IACInitializationIU
 from retico_vision import CozmoNavigationMemoryMapIU, ObjectFeaturesIU, ObjectPermanenceIU
 
+import shutil
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -91,11 +93,34 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
         # If an execution ID was included, we are loading a prior execution
         if self.execution_uuid:
             self.date_timestamp = iu_meta_data.get('date_timestamp')
+
+            updated_execution_uuid = f"{self.execution_uuid}_{str(uuid.uuid4()).split('-')[0]}"
+            print(f"Updated execution uuid: {updated_execution_uuid}")
+            shutil.copyfile(f'./IAC_output_data/{self.date_timestamp}/agent_{self.execution_uuid}.pickle',
+                            f'./IAC_output_data/{self.date_timestamp}/agent_{updated_execution_uuid}.pickle')
+            shutil.copyfile(f'./IAC_output_data/{self.date_timestamp}/sensori_effect_{self.execution_uuid}.csv',
+                            f'./IAC_output_data/{self.date_timestamp}/sensori_effect_{updated_execution_uuid}.csv')
+
+            # TODO: this is currently hardcoded for bb type, update if we end up supporting other configs
+            # clip_bb_path = Path(f"./extraction_output/{self.date_timestamp}/bb/{updated_execution_uuid}/extracted/")
+            # clip_bb_path.mkdir(parents=True, exist_ok=True)
+            shutil.copytree(f"./extraction_output/{self.date_timestamp}/bb/{self.execution_uuid}/extracted/",
+                            f"./extraction_output/{self.date_timestamp}/bb/{updated_execution_uuid}/extracted/",
+                            dirs_exist_ok = True)
+
             with open(f'./IAC_output_data/{self.date_timestamp}/agent_{self.execution_uuid}.pickle', 'rb') as f:
                 self.agent = pickle.load(f)
-            print(f"Loading prior execution with uuid {self.execution_uuid} and date {self.date_timestamp}. Continuing with experiment '{self.experiment_name}'")
-            self.experiment_name = self.agent.experiment_name  # override experiment with whatever was used in the loaded model
-            self.experiment_shorthand_name = ExperimentName(self.experiment_name).name
+            self.execution_uuid = updated_execution_uuid
+            overridden_experiment_name = iu_meta_data.get('experiment_name')
+            if overridden_experiment_name is not None:
+                print(f"Loading prior execution with uuid {self.execution_uuid} and date {self.date_timestamp}. Continuing with different experiment '{overridden_experiment_name}'")
+                self.experiment_name = overridden_experiment_name  # override whatever was used in the loaded model with the specified experiment name
+                self.experiment_shorthand_name = ExperimentName(self.experiment_name).name
+            else:
+                print(f"Loading prior execution with uuid {self.execution_uuid} and date {self.date_timestamp}. Continuing with experiment '{self.experiment_name}'")
+                self.experiment_name = self.agent.experiment_name  # override experiment with whatever was used in the loaded model
+                self.experiment_shorthand_name = ExperimentName(self.experiment_name).name
+
             self.rand_seed = self.agent.rand_seed
             self.interest_model = self.agent.interest_model
             self.sensorimotor_model = self.agent.sensorimotor_model
@@ -116,17 +141,30 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
                 sensory_space_size = 519  #CLIP+ SENSORY SPACE
 
 
-            # ## 18 x 12 in exploration space
+
+
+            # -5in | +18in X, +-12in Y  exploration space
+            m_mins = [-127, -300, -180]   # Cozmo Pose x,y (width and length of space + rotation) distance in mm # SOME PADDING
+            m_maxs = [482, 300, 180]  # Cozmo Pose x,y + rotation distance in mm # SOME PADDING
+
+
+            # ## 18 x 12 in exploration space *2
             # m_mins = [-500, -300, -180]   # Cozmo Pose x,y (width and length of space + rotation) distance in mm # SOME PADDING
             # m_maxs = [500, 300, 180]  # Cozmo Pose x,y + rotation distance in mm # SOME PADDING
             #
-            # ## 18 x 18 in exploration space
+            #
+            # # 12 x 12 exploration space
+            # m_mins = [-300, -300, -180]   # Cozmo Pose x,y (width and length of space + rotation) distance in mm # SOME PADDING
+            # m_maxs = [300, 300, 180]  # Cozmo Pose x,y + rotation distance in mm # SOME PADDING
+
+
+            # # ## 18 x 18 in exploration space
             # m_mins = [-500, -500, -180]   # Cozmo Pose x,y (width and length of space + rotation) distance in mm # SOME PADDING
             # m_maxs = [500, 500, 180]  # Cozmo Pose x,y + rotation distance in mm # SOME PADDING
 
             #  ~5 x 5 inch (+/-) in exploration space
-            m_mins = [-100, -100, -180]   # Cozmo Pose x,y (width and length of space + rotation) distance in mm # SOME PADDING
-            m_maxs = [100, 100, 180]  # Cozmo Pose x,y + rotation distance in mm # SOME PADDING
+            # m_mins = [-100, -100, -180]   # Cozmo Pose x,y (width and length of space + rotation) distance in mm # SOME PADDING
+            # m_maxs = [100, 100, 180]  # Cozmo Pose x,y + rotation distance in mm # SOME PADDING
 
             s_mins = [-1] * sensory_space_size  # -1 because 0 is a valid CLIP output
             s_maxs = [1] * sensory_space_size
