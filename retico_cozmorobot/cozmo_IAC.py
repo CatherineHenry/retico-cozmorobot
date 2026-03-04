@@ -78,9 +78,11 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
         # Is set based on if an agent is loaded
         self.agent = None
         self.date_timestamp = None
+        self.prior_execution_date_timestamp = None
         self.sensorimotor_model = None
         self.interest_model = None
         self.rand_seed = None
+        self.prior_execution_max_turn_count = 0
 
     def setup_iac(self, grounded_motor_action_iu):
         iu_meta_data = grounded_motor_action_iu.meta_data
@@ -89,37 +91,52 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
         self.manual_control = iu_meta_data.get('manual_control')
         # If we are loading a prior execution, the execution_uuid will already be set
         self.execution_uuid = iu_meta_data.get('execution_uuid')
+        self.date_timestamp = datetime.now().strftime('%m_%d')
 
         # If an execution ID was included, we are loading a prior execution
         if self.execution_uuid:
-            self.date_timestamp = iu_meta_data.get('date_timestamp')
+            self.prior_execution_date_timestamp = iu_meta_data.get('date_timestamp')
 
             updated_execution_uuid = f"{self.execution_uuid}_{str(uuid.uuid4()).split('-')[0]}"
             print(f"Updated execution uuid: {updated_execution_uuid}")
-            shutil.copyfile(f'./IAC_output_data/{self.date_timestamp}/agent_{self.execution_uuid}.pickle',
+            Path(f"./IAC_output_data/{self.date_timestamp}").mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(f'./IAC_output_data/{self.prior_execution_date_timestamp}/agent_{self.execution_uuid}.pickle',
                             f'./IAC_output_data/{self.date_timestamp}/agent_{updated_execution_uuid}.pickle')
-            shutil.copyfile(f'./IAC_output_data/{self.date_timestamp}/sensori_effect_{self.execution_uuid}.csv',
+            shutil.copyfile(f'./IAC_output_data/{self.prior_execution_date_timestamp}/sensori_effect_{self.execution_uuid}.csv',
                             f'./IAC_output_data/{self.date_timestamp}/sensori_effect_{updated_execution_uuid}.csv')
 
             # TODO: this is currently hardcoded for bb type, update if we end up supporting other configs
             # clip_bb_path = Path(f"./extraction_output/{self.date_timestamp}/bb/{updated_execution_uuid}/extracted/")
             # clip_bb_path.mkdir(parents=True, exist_ok=True)
-            shutil.copytree(f"./extraction_output/{self.date_timestamp}/bb/{self.execution_uuid}/extracted/",
+            Path(f"./extraction_output/{self.date_timestamp}/bb/{updated_execution_uuid}/extracted/").mkdir(parents=True, exist_ok=True)
+            shutil.copytree(f"./extraction_output/{self.prior_execution_date_timestamp}/bb/{self.execution_uuid}/extracted/",
                             f"./extraction_output/{self.date_timestamp}/bb/{updated_execution_uuid}/extracted/",
                             dirs_exist_ok = True)
 
-            with open(f'./IAC_output_data/{self.date_timestamp}/agent_{self.execution_uuid}.pickle', 'rb') as f:
+            with open(f'./IAC_output_data/{self.date_timestamp}/agent_{updated_execution_uuid}.pickle', 'rb') as f:
                 self.agent = pickle.load(f)
+
             self.execution_uuid = updated_execution_uuid
-            overridden_experiment_name = iu_meta_data.get('experiment_name')
-            if overridden_experiment_name is not None:
-                print(f"Loading prior execution with uuid {self.execution_uuid} and date {self.date_timestamp}. Continuing with different experiment '{overridden_experiment_name}'")
-                self.experiment_name = overridden_experiment_name  # override whatever was used in the loaded model with the specified experiment name
-                self.experiment_shorthand_name = ExperimentName(self.experiment_name).name
-            else:
-                print(f"Loading prior execution with uuid {self.execution_uuid} and date {self.date_timestamp}. Continuing with experiment '{self.experiment_name}'")
-                self.experiment_name = self.agent.experiment_name  # override experiment with whatever was used in the loaded model
-                self.experiment_shorthand_name = ExperimentName(self.experiment_name).name
+            try:
+                self.prior_execution_max_turn_count = self.agent.interest_model.max_turn_count
+            except AttributeError:
+                print("For backwards compatibility, didn't always save max turn count :/")
+
+
+            # TODO: Do we want this functionality? How to make offline plots manage changing experiment type mid-way through?
+            # overridden_experiment_name = iu_meta_data.get('experiment_name')
+            # if overridden_experiment_name is not None:
+            #     print(f"Loading prior execution with uuid {self.execution_uuid} and date {self.date_timestamp}. Continuing with different experiment '{overridden_experiment_name}'")
+            #     self.experiment_name = overridden_experiment_name  # override whatever was used in the loaded model with the specified experiment name
+            #     self.experiment_shorthand_name = ExperimentName(self.experiment_name).name
+            # else:
+            #     print(f"Loading prior execution with uuid {self.execution_uuid} and date {self.date_timestamp}. Continuing with experiment '{self.experiment_name}'")
+            #     self.experiment_name = self.agent.experiment_name  # override experiment with whatever was used in the loaded model
+            #     self.experiment_shorthand_name = ExperimentName(self.experiment_name).name
+
+            self.experiment_name = self.agent.experiment_name  # override experiment with whatever was used in the loaded model
+            self.experiment_shorthand_name = ExperimentName(self.experiment_name).name
+            print(f"Loading prior execution with uuid {self.execution_uuid} and date {self.prior_execution_date_timestamp}. Continuing with experiment '{self.experiment_name}' and new date of {self.date_timestamp}")
 
             self.rand_seed = self.agent.rand_seed
             self.interest_model = self.agent.interest_model
@@ -128,7 +145,6 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
         # Starting a fresh execution
         else:
             self.execution_uuid = str(uuid.uuid4()).split("-")[0]
-            self.date_timestamp = datetime.now().strftime('%m_%d')
             print(f"Starting new execution with uuid {self.execution_uuid} and date {self.date_timestamp}")
             self.experiment_name = iu_meta_data['experiment_name'] # TODO: move to if an agent was not loaded
             self.experiment_shorthand_name = ExperimentName(self.experiment_name).name
@@ -206,6 +222,7 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
         if isinstance(input_iu, IACInitializationIU):
             self.setup_iac(input_iu)
             output_iu.meta_data['date_timestamp'] = self.date_timestamp
+            output_iu.meta_data['prior_execution_date_timestamp'] = self.prior_execution_date_timestamp
             # If the execution_uuid was None when we started, we need to set it to the new UUID
             # If one was set to run a prior execution this will just overwrite with the same execution_uuid as before
             output_iu.meta_data['execution_uuid'] = self.execution_uuid
@@ -266,9 +283,9 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
 
             turn_count = len(self.interest_model.data_x)
             # We've completed max number of turns, save the model and exit
-            if self.max_turn_count != 0 and turn_count == self.max_turn_count:
+            if self.max_turn_count != 0 and turn_count == self.max_turn_count + self.prior_execution_max_turn_count:
                 self.agent.save(f"./IAC_output_data/{self.date_timestamp}/agent_{self.execution_uuid}.pickle")
-                print(f"Successfully ran {self.max_turn_count} actions. Saved agent and quitting program.")
+                print(f"Successfully ran {self.max_turn_count} actions (in addition to prior execution {self.prior_execution_max_turn_count} actions). Saved agent and quitting program.")
                 sys.exit()
 
             # set new flow uuid for the new motor action
