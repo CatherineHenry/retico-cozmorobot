@@ -76,8 +76,10 @@ class CozmoCameraModule(retico_core.AbstractModule):
     def configure_camera(self):
         self.robot.camera.image_stream_enabled = True
         self.robot.camera.color_image_enabled = True
-        self.robot.camera.enable_auto_exposure(False) # = False # False means we can adjust manually
+        self.robot.camera.enable_auto_exposure(True) # = False # False means we can adjust manually
         time.sleep(5) # wait for these settings to propagate through to Cozmo
+        self.robot.camera.enable_auto_exposure(False) # = False # False means we can adjust manually
+
         # Lerp exposure between min and max times
         min_exposure = self.robot.camera.config.min_exposure_time_ms
         max_exposure = self.robot.camera.config.max_exposure_time_ms
