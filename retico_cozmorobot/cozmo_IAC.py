@@ -84,7 +84,7 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
 
     def setup_iac(self, grounded_motor_action_iu):
         iu_meta_data = grounded_motor_action_iu.meta_data
-        self.save_data = iu_meta_data['save_data']
+        self.save_data = iu_meta_data.get('save_data')
         self.max_turn_count = iu_meta_data.get('max_turn_count')
         self.manual_control = iu_meta_data.get('manual_control')
         # If we are loading a prior execution, the execution_uuid will already be set
