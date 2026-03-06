@@ -1,6 +1,7 @@
 # retico
 import logging
 import pickle
+import shutil
 import time
 from pathlib import Path
 
@@ -99,17 +100,32 @@ class CozmoExecuteIACMotorGoalModule(retico_core.AbstractModule):
             self.cozmo_iac_env.update(input_iu.payload, log=False)
 
         if input_iu.meta_data.get('save_data'):
-            execution_uuid = input_iu.meta_data['execution_uuid']
-            date_timestamp = input_iu.meta_data['date_timestamp']
+            execution_uuid = input_iu.meta_data.get('execution_uuid')
+            date_timestamp = input_iu.meta_data.get('date_timestamp')
+            prior_execution_date_timestamp = input_iu.meta_data.get('prior_execution_date_timestamp')
+            save_data = input_iu.meta_data.get('save_data')
             # TODO: why is execution_uuid none?
             # TODO: only save if save_data is True
             # Using pickle instead of csv because I need the objects for easier rendering with the existing opengl implementation.
-            offline_data_path = f'./IAC_output_data/{date_timestamp}/{execution_uuid}'
-            Path(offline_data_path).mkdir(parents=True, exist_ok=True)
-            with open(f'{offline_data_path}/motor_actions_{execution_uuid}.pickle', 'ab+') as file_handler:
-                # TODO: pass the motor goal instead, will have to update how we run it on robot
-                # Saving the robot pose just exacerbates to the rotation error already present
-                pickle.dump(self.robot.pose, file_handler)
+            if save_data:
+                offline_data_path = f'./IAC_output_data/{date_timestamp}/data_for_offline_replay/{execution_uuid}'
+                # Just copy everything over, so any of the functions that add to this file can copy everything
+
+                if not Path(offline_data_path).is_dir():
+                    if len(execution_uuid.split("_")) > 1:
+                        prior_execution_uuid = "_".join(execution_uuid.split("_")[0:-1])
+                        prior_execution_path = f'./IAC_output_data/{prior_execution_date_timestamp}/data_for_offline_replay/{prior_execution_uuid}'
+                        shutil.copytree(prior_execution_path,
+                                    f'./IAC_output_data/{date_timestamp}/data_for_offline_replay/{execution_uuid}',
+                                        dirs_exist_ok = True)
+                    else:
+                        Path(offline_data_path).mkdir(parents=True, exist_ok=True)
+
+                with open(f'{offline_data_path}/motor_actions_{execution_uuid}.pickle', 'ab+') as file_handler:
+                    # TODO: pass the motor goal instead, will have to update how we run it on robot
+                    # Saving the robot pose just exacerbates to the rotation error already present
+                    pickle.dump(self.robot.pose, file_handler)
+
 
         # Either pass the goal along as the new robot state, or the resulting pose of any manual movement
         output_iu.set_state(motor_goal)

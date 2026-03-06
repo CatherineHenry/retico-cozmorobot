@@ -1,5 +1,6 @@
 # retico
 import pickle
+import shutil
 from pathlib import Path
 
 import retico_core
@@ -39,13 +40,25 @@ class CozmoNavMemoryMapModule(retico_core.AbstractModule):
         # Save data if IU type is ObjectPermanenceIU (not IACInitializationIU)
         # This ensures we have the date timestamp and execution uuid from server (in case agent was loaded)
         if isinstance(input_iu, ObjectPermanenceIU):
-            execution_uuid = input_iu.meta_data['execution_uuid']
-            date_timestamp = input_iu.meta_data['date_timestamp']
-            offline_data_path = f'./IAC_output_data/{date_timestamp}/{execution_uuid}'
-            Path(offline_data_path).mkdir(parents=True, exist_ok=True)
+            execution_uuid = input_iu.meta_data.get('execution_uuid')
+            date_timestamp = input_iu.meta_data.get('date_timestamp')
+            prior_execution_date_timestamp = input_iu.meta_data.get('prior_execution_date_timestamp')
+            save_data = input_iu.meta_data.get('save_data')
             nav_mem_map = self.robot.world.nav_memory_map
-            with open(f'{offline_data_path}/nav_memory_map_snapshots_{execution_uuid}.pickle', 'ab+') as file_handler:
-                pickle.dump(nav_mem_map, file_handler)
+            if save_data:
+                offline_data_path = f'./IAC_output_data/{date_timestamp}/data_for_offline_replay/{execution_uuid}'
+                if not Path(offline_data_path).is_dir():
+                    if len(execution_uuid.split("_")) > 1:
+                        prior_execution_uuid = "_".join(execution_uuid.split("_")[0:-1])
+                        prior_execution_path = f'./IAC_output_data/{prior_execution_date_timestamp}/data_for_offline_replay/{prior_execution_uuid}'
+                        shutil.copytree(prior_execution_path,
+                                        f'./IAC_output_data/{date_timestamp}/data_for_offline_replay/{execution_uuid}',
+                                        dirs_exist_ok = True)
+                    else:
+                        Path(offline_data_path).mkdir(parents=True, exist_ok=True)
+
+                with open(f'{offline_data_path}/nav_memory_map_snapshots_{execution_uuid}.pickle', 'ab+') as file_handler:
+                    pickle.dump(nav_mem_map, file_handler)
 
         output_iu = self.create_iu(input_iu)
         output_iu.set_payload(nav_mem_map)
