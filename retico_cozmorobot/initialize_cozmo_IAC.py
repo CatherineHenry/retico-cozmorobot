@@ -25,7 +25,7 @@ class IACInitializationIU(abstract.IncrementalUnit):
                          grounded_in=grounded_in)
         self.payload = None
 
-    def set_metadata(self, execution_uuid, save_data, experiment_name, max_turn_count, manual_control, flow_uuid):
+    def set_metadata(self, execution_uuid, save_data, experiment_name, max_turn_count, manual_control, flow_uuid, date_timestamp=None):
         self.meta_data = {
             'execution_uuid': execution_uuid,
             'manual_control': manual_control,
@@ -33,6 +33,7 @@ class IACInitializationIU(abstract.IncrementalUnit):
             'max_turn_count': max_turn_count,
             'experiment_name': experiment_name,
             'flow_uuid': flow_uuid,
+            'date_timestamp': date_timestamp # should only be set if the execution_uuid is set
         }
 
     def set_payload(self, motor_goal: []):
@@ -60,7 +61,7 @@ class CozmoIntelligentAdaptiveCuriosityInitializationModule(abstract.AbstractPro
     def output_iu():
         return IACInitializationIU
 
-    def __init__(self, robot: cozmo.robot.Robot, experiment_name, save_data=False, execution_uuid=None, max_turn_count=0, manual_control=True, **kwargs):
+    def __init__(self, robot: cozmo.robot.Robot, experiment_name, save_data=False, execution_uuid=None, max_turn_count=0, manual_control=True, date_timestamp=None, **kwargs):
         super().__init__(**kwargs)
         self.robot = robot
 
@@ -71,6 +72,10 @@ class CozmoIntelligentAdaptiveCuriosityInitializationModule(abstract.AbstractPro
         self.manual_control = manual_control
         self.experiment_name = experiment_name
 
+        # Passing through if the execution_uuid is set, so we can log what day it was originally from
+        # and for copying prior execution data
+        self.date_timestamp = date_timestamp
+
 
     def process_update(self, update_message):
         output_iu = self.create_iu(grounded_in=None)
@@ -79,7 +84,8 @@ class CozmoIntelligentAdaptiveCuriosityInitializationModule(abstract.AbstractPro
         flow_uuid = 'init_' + str(uuid.uuid4()).split("-")[0]
         output_iu.set_payload(motor_goal=init_robot_position)
         output_iu.set_metadata(execution_uuid=self.execution_uuid, save_data=self.save_data, experiment_name=self.experiment_name,
-                               max_turn_count=self.max_turn_count, manual_control=self.manual_control, flow_uuid=flow_uuid)
+                               max_turn_count=self.max_turn_count, manual_control=self.manual_control, flow_uuid=flow_uuid,
+                               date_timestamp=self.date_timestamp)
 
 
         # Break out of producer loop after running 1x, we only need this for basic initialization
