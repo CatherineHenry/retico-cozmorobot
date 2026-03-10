@@ -1,6 +1,7 @@
 import logging
 import pickle
 import sys
+import time
 import tkinter as tk
 import uuid
 from datetime import datetime
@@ -287,8 +288,9 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
             turn_count = len(self.interest_model.data_x)
             # We've completed max number of turns, save the model and exit
             if self.max_turn_count != 0 and turn_count == self.max_turn_count + self.prior_execution_max_turn_count:
-                self.agent.save(f"./IAC_output_data/{self.date_timestamp}/agent_{self.execution_uuid}.pickle")
+                # self.agent.save(f"./IAC_output_data/{self.date_timestamp}/agent_{self.execution_uuid}.pickle")
                 print(f"Successfully ran {self.max_turn_count} actions (in addition to prior execution {self.prior_execution_max_turn_count} actions). Saved agent and quitting program.")
+                time.sleep(5)
                 sys.exit()
 
             # set new flow uuid for the new motor action
