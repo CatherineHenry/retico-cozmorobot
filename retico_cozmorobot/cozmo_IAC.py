@@ -119,6 +119,9 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
             self.execution_uuid = updated_execution_uuid
             try:
                 self.prior_execution_max_turn_count = self.agent.interest_model.max_turn_count
+                # Setting so consecutive runs can have a different distribution setup than prior runs
+                self.agent.interest_model.tree.prior_max_turn_count = self.prior_execution_max_turn_count
+                self.agent.interest_model.tree.max_turn_count = self.max_turn_count
             except AttributeError:
                 print("For backwards compatibility, didn't always save max turn count :/")
 
