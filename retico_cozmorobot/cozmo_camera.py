@@ -44,6 +44,7 @@ class CozmoCameraModule(retico_core.AbstractModule):
         self.gain_amount = gain
         self.configure_camera()
 
+        self.handler = None
         self.img_queue = deque(maxlen=1)
         self.queue = deque()
 
@@ -101,12 +102,13 @@ class CozmoCameraModule(retico_core.AbstractModule):
         def handle_image(evt, obj=None, tap_count=None,  **kwargs):
             self.img_queue.append(evt.image)
 
-        time.sleep(20)
-        self.robot.world.add_event_handler(cozmo.camera.EvtNewRawCameraImage, handle_image)
+        self.handler = self.robot.world.add_event_handler(cozmo.camera.EvtNewRawCameraImage, handle_image)
 
         self._extractor_thread_active = True
         threading.Thread(target=self._extractor_thread).start()
 
     def shutdown(self):
+        if self.handler is not None:
+            self.handler.disable()
         self._extractor_thread_active = False
 
