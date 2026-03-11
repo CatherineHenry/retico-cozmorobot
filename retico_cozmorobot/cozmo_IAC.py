@@ -40,6 +40,7 @@ class ExperimentName(Enum):
     e = 'cozmo_clip_cos_sim_split_random_sampling'
     f = 'cozmo_clip_cos_sim_split_with_region_deletion'
     g = 'cozmo_clip_cos_sim_split_progressive_splits'
+    h = 'cozmo_clip_cos_sim_split_progressive_splits_random_sampling'
 
 class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame):
     """
