@@ -122,8 +122,8 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
             try:
                 self.prior_execution_max_turn_count = self.agent.interest_model.max_turn_count
                 # Setting so consecutive runs can have a different distribution setup than prior runs
-                self.agent.interest_model.tree.prior_max_turn_count = self.prior_execution_max_turn_count
-                self.agent.interest_model.tree.max_turn_count = self.max_turn_count
+                self.agent.interest_model.prior_max_turn_count = self.prior_execution_max_turn_count
+                self.agent.interest_model.max_turn_count = self.max_turn_count
             except AttributeError:
                 print("For backwards compatibility, didn't always save max turn count :/")
 
@@ -291,7 +291,7 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
             if self.max_turn_count != 0 and turn_count == self.max_turn_count + self.prior_execution_max_turn_count:
                 # self.agent.save(f"./IAC_output_data/{self.date_timestamp}/agent_{self.execution_uuid}.pickle")
                 print(f"Successfully ran {self.max_turn_count} actions (in addition to prior execution {self.prior_execution_max_turn_count} actions). Saved agent and quitting program.")
-                time.sleep(5)
+                time.sleep(15)
                 sys.exit()
 
             # set new flow uuid for the new motor action
