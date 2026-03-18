@@ -1,5 +1,6 @@
 # retico
 import logging
+import os
 import pickle
 import shutil
 import time
@@ -40,6 +41,7 @@ class CozmoExecuteIACMotorGoalModule(retico_core.AbstractModule):
         self.robot = robot
         self.cozmo_iac_env = None
         self.manual_control = manual_control
+
 
     def process_update(self, update_message):
         for input_iu, update_type in update_message:
@@ -108,20 +110,21 @@ class CozmoExecuteIACMotorGoalModule(retico_core.AbstractModule):
             # TODO: only save if save_data is True
             # Using pickle instead of csv because I need the objects for easier rendering with the existing opengl implementation.
             if save_data:
-                offline_data_path = f'./IAC_output_data/{date_timestamp}/data_for_offline_replay/{execution_uuid}'
-                # Just copy everything over, so any of the functions that add to this file can copy everything
+                filename = f"motor_actions_{execution_uuid}.pickle"
+                offline_data_dir = f'./IAC_output_data/{date_timestamp}/data_for_offline_replay/{execution_uuid}'
+                if not Path(offline_data_dir).is_dir():
+                    Path(offline_data_dir).mkdir(parents=True, exist_ok=True) # Make directory
+                split_execution_uuid = execution_uuid.split("_")
+                # only want to copy and rename prior execution files if running from a prior execution and if it hasn't been copied already
+                if len(split_execution_uuid) > 1:
+                    if not os.path.exists(f"{offline_data_dir}/{filename}"):
+                        prior_execution_uuid = "_".join(split_execution_uuid[0:-1])
+                        prior_execution_dir = f'./IAC_output_data/{prior_execution_date_timestamp}/data_for_offline_replay/{prior_execution_uuid}'
+                        prior_execution_filename =  f"motor_actions_{prior_execution_uuid}.pickle"
+                        shutil.copyfile(f'{prior_execution_dir}/{prior_execution_filename}',
+                                        f'{offline_data_dir}/{filename}')
 
-                if not Path(offline_data_path).is_dir():
-                    if len(execution_uuid.split("_")) > 1:
-                        prior_execution_uuid = "_".join(execution_uuid.split("_")[0:-1])
-                        prior_execution_path = f'./IAC_output_data/{prior_execution_date_timestamp}/data_for_offline_replay/{prior_execution_uuid}'
-                        shutil.copytree(prior_execution_path,
-                                    f'./IAC_output_data/{date_timestamp}/data_for_offline_replay/{execution_uuid}',
-                                        dirs_exist_ok = True)
-                    else:
-                        Path(offline_data_path).mkdir(parents=True, exist_ok=True)
-
-                with open(f'{offline_data_path}/motor_actions_{execution_uuid}.pickle', 'ab+') as file_handler:
+                with open(f'{offline_data_dir}/{filename}', 'ab+') as file_handler:
                     # TODO: pass the motor goal instead, will have to update how we run it on robot
                     # Saving the robot pose just exacerbates to the rotation error already present
                     pickle.dump(self.robot.pose, file_handler)
