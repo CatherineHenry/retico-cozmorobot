@@ -75,6 +75,7 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
         self.experiment_shorthand_name = None
         self.execution_uuid = None
         self.max_turn_count = None
+        self.prior_max_turn_counts = 0
         self.manual_control = None
 
         # Is set based on if an agent is loaded
@@ -84,12 +85,10 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
         self.sensorimotor_model = None
         self.interest_model = None
         self.rand_seed = None
-        self.prior_execution_max_turn_count = 0
 
     def setup_iac(self, grounded_motor_action_iu):
         iu_meta_data = grounded_motor_action_iu.meta_data
         self.save_data = iu_meta_data.get('save_data')
-        self.max_turn_count = iu_meta_data.get('max_turn_count')
         self.manual_control = iu_meta_data.get('manual_control')
         # If we are loading a prior execution, the execution_uuid will already be set
         self.execution_uuid = iu_meta_data.get('execution_uuid')
@@ -119,14 +118,11 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
                 self.agent = pickle.load(f)
 
             self.execution_uuid = updated_execution_uuid
-            try:
-                self.prior_execution_max_turn_count = self.agent.interest_model.max_turn_count
-                # Setting so consecutive runs can have a different distribution setup than prior runs
-                self.agent.interest_model.prior_max_turn_count = self.prior_execution_max_turn_count
-                self.agent.interest_model.max_turn_count = self.max_turn_count
-            except AttributeError:
-                print("For backwards compatibility, didn't always save max turn count :/")
-
+            self.agent.execution_uuid = updated_execution_uuid
+            execution_iteration = len(updated_execution_uuid.split('_')) - 1 # 0 indexed (so iteration 1 would be the second iteration)
+            self.agent.interest_model.execution_iteration = execution_iteration
+            self.max_turn_count = self.agent.interest_model.max_turn_counts[execution_iteration]
+            self.prior_max_turn_counts = sum(self.agent.interest_model.max_turn_counts[:execution_iteration] if execution_iteration < len(self.agent.interest_model.max_turn_counts) else self.interest_model.max_turn_counts[-1])
 
             # TODO: Do we want this functionality? How to make offline plots manage changing experiment type mid-way through?
             # overridden_experiment_name = iu_meta_data.get('experiment_name')
@@ -207,12 +203,15 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
 
             # Select Interest Model config based on Experiment
             config_name = self.experiment_name
-            self.interest_model = InterestModel.from_configuration(cozmo_env.conf, cozmo_env.conf.m_dims, 'tree', config_name, rand_seed=self.rand_seed, max_turn_count=self.max_turn_count) # passing nav mem map here because we rely on pass by reference for dynamic updates.
+            self.interest_model = InterestModel.from_configuration(cozmo_env.conf, cozmo_env.conf.m_dims, 'tree', config_name, rand_seed=self.rand_seed) # passing nav mem map here because we rely on pass by reference for dynamic updates.
             self.agent = ReticoAgent(cozmo_env.conf, self.sensorimotor_model, self.interest_model, execution_uuid=self.execution_uuid, execution_date_timestamp=self.date_timestamp, save_data=self.save_data, experiment_name=self.experiment_name, rand_seed=self.rand_seed)  # agent is necessary to avoid bootstrapping issues
+
+            self.max_turn_count = self.interest_model.max_turn_counts[0]
 
 
         Path(f"IAC_output_data/{self.date_timestamp}").mkdir(parents=True, exist_ok=True)
         print(f"Random seed is {self.rand_seed}")
+        print(f"Max turn count is {self.max_turn_count} with a prior max turn count of {self.prior_max_turn_counts}")
 
     def process_update(self, update_message):
         for input_iu, update_type in update_message:
@@ -286,11 +285,11 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
             # inform the agent of the sensorimotor consequence of the action and update both the sensorimotor and interest models
             self.agent.perceive(sensori_effect, flow_uuid=flow_uuid, nav_memory_map=input_iu.payload)
 
-            turn_count = len(self.interest_model.data_x)
+            current_turn_count = len(self.interest_model.data_x)
+            print(f"Current turn: {current_turn_count}")
             # We've completed max number of turns, save the model and exit
-            if self.max_turn_count != 0 and turn_count == self.max_turn_count + self.prior_execution_max_turn_count:
-                # self.agent.save(f"./IAC_output_data/{self.date_timestamp}/agent_{self.execution_uuid}.pickle")
-                print(f"Successfully ran {self.max_turn_count} actions (in addition to prior execution {self.prior_execution_max_turn_count} actions). Saved agent and quitting program.")
+            if self.max_turn_count != 0 and current_turn_count == self.max_turn_count + self.prior_max_turn_counts:
+                print(f"Successfully ran {self.max_turn_count} actions (in addition to prior execution(s) {self.prior_max_turn_counts} actions). Saved agent and quitting program.")
                 time.sleep(15)
                 sys.exit()
 
