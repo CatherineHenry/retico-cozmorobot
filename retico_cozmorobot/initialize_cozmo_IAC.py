@@ -25,12 +25,11 @@ class IACInitializationIU(abstract.IncrementalUnit):
                          grounded_in=grounded_in)
         self.payload = None
 
-    def set_metadata(self, execution_uuid, save_data, experiment_name, max_turn_count, manual_control, flow_uuid, date_timestamp=None):
+    def set_metadata(self, execution_uuid, save_data, experiment_name, manual_control, flow_uuid, date_timestamp=None):
         self.meta_data = {
             'execution_uuid': execution_uuid,
             'manual_control': manual_control,
             'save_data': save_data,
-            'max_turn_count': max_turn_count,
             'experiment_name': experiment_name,
             'flow_uuid': flow_uuid,
             'date_timestamp': date_timestamp # should only be set if the execution_uuid is set
@@ -61,14 +60,13 @@ class CozmoIntelligentAdaptiveCuriosityInitializationModule(abstract.AbstractPro
     def output_iu():
         return IACInitializationIU
 
-    def __init__(self, robot: cozmo.robot.Robot, experiment_name, save_data=False, execution_uuid=None, max_turn_count=0, manual_control=True, date_timestamp=None, **kwargs):
+    def __init__(self, robot: cozmo.robot.Robot, experiment_name, save_data=False, execution_uuid=None, manual_control=True, date_timestamp=None, **kwargs):
         super().__init__(**kwargs)
         self.robot = robot
 
         # Metadata passed to all future IUs, these values should be static
         self.save_data = save_data
         self.execution_uuid = execution_uuid
-        self.max_turn_count = max_turn_count
         self.manual_control = manual_control
         self.experiment_name = experiment_name
 
@@ -84,7 +82,7 @@ class CozmoIntelligentAdaptiveCuriosityInitializationModule(abstract.AbstractPro
         flow_uuid = 'init_' + str(uuid.uuid4()).split("-")[0]
         output_iu.set_payload(motor_goal=init_robot_position)
         output_iu.set_metadata(execution_uuid=self.execution_uuid, save_data=self.save_data, experiment_name=self.experiment_name,
-                               max_turn_count=self.max_turn_count, manual_control=self.manual_control, flow_uuid=flow_uuid,
+                               manual_control=self.manual_control, flow_uuid=flow_uuid,
                                date_timestamp=self.date_timestamp)
 
 
