@@ -121,8 +121,8 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
 
             self.execution_uuid = updated_execution_uuid
             self.agent.execution_uuid = updated_execution_uuid
-            execution_iteration = len(updated_execution_uuid.split('_')) - 1 # 0 indexed (so iteration 1 would be the second iteration)
-            self.agent.interest_model.execution_iteration = execution_iteration
+            # +1 because we are loading the starting value in from a prior execution, meaning this execution is the prior + 1
+            execution_iteration = self.agent.interest_model.get_execution_iteration + 1
             self.max_turn_count = self.agent.interest_model.max_turn_counts[execution_iteration] if execution_iteration < len(self.agent.interest_model.max_turn_counts) else self.agent.interest_model.max_turn_counts[-1]
             self.prior_max_turn_counts = sum(self.agent.interest_model.max_turn_counts[:execution_iteration] if execution_iteration < len(self.agent.interest_model.max_turn_counts) else self.agent.interest_model.max_turn_counts[:-1] + [self.agent.interest_model.max_turn_counts[-1]] *((execution_iteration+1)-len(self.agent.interest_model.max_turn_counts)))
 
