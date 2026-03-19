@@ -64,10 +64,10 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
     def output_iu():
         return IACMotorGoalIU
 
-    def __init__(self, plt_ax=None, **kwargs):
+    def __init__(self, plot_window=None, **kwargs):
         super().__init__(**kwargs)
 
-        self.plt_ax = plt_ax
+        self.plot_window = plot_window
 
         # These will be set in a call to setup_iac when we receive the first (and only) IACInitializationIU
         # This is so we only set a configuration in one place, to limit error and simplify the pipeline
@@ -286,8 +286,9 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
 
             # inform the agent of the sensorimotor consequence of the action and update both the sensorimotor and interest models
             self.agent.perceive(sensori_effect, flow_uuid=flow_uuid, nav_memory_map=input_iu.payload)
-            if self.plt_ax is not None:
-                self.agent.interest_model.plot(self.plt_ax, plot_dims=[0,1,2])
+            if self.plot_window is not None:
+                self.agent.interest_model.tree.plot(self.plot_window.canvas.axes, plot_dims=[0,1,2])
+                self.plot_window.update()
 
             current_turn_count = len(self.interest_model.data_x)
             print(f"Current turn: {current_turn_count}")
