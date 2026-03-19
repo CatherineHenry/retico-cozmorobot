@@ -294,7 +294,7 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
             print(f"Current turn: {current_turn_count}")
             # We've completed max number of turns, save the model and exit
             if self.max_turn_count != 0 and current_turn_count == self.max_turn_count + self.prior_max_turn_counts:
-                print(f"Successfully ran {self.max_turn_count} actions (in addition to prior execution(s) {self.prior_max_turn_counts} actions). Saved agent and quitting program.")
+                print(f"Execution {self.execution_uuid}: Successfully ran {self.max_turn_count} actions (in addition to prior execution(s) {self.prior_max_turn_counts} actions). Saved agent and quitting program.")
                 time.sleep(15)
                 sys.exit()
 
