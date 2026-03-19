@@ -123,8 +123,8 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
             self.agent.execution_uuid = updated_execution_uuid
             execution_iteration = len(updated_execution_uuid.split('_')) - 1 # 0 indexed (so iteration 1 would be the second iteration)
             self.agent.interest_model.execution_iteration = execution_iteration
-            self.max_turn_count = self.agent.interest_model.max_turn_counts[execution_iteration]
-            self.prior_max_turn_counts = sum(self.agent.interest_model.max_turn_counts[:execution_iteration] if execution_iteration < len(self.agent.interest_model.max_turn_counts) else self.interest_model.max_turn_counts[-1])
+            self.max_turn_count = self.agent.interest_model.max_turn_counts[execution_iteration] if execution_iteration < len(self.agent.interest_model.max_turn_counts) else self.agent.interest_model.max_turn_counts[-1]
+            self.prior_max_turn_counts = sum(self.agent.interest_model.max_turn_counts[:execution_iteration] if execution_iteration < len(self.agent.interest_model.max_turn_counts) else self.agent.interest_model.max_turn_counts[:-1] + [self.agent.interest_model.max_turn_counts[-1]] *((execution_iteration+1)-len(self.agent.interest_model.max_turn_counts)))
 
             # TODO: Do we want this functionality? How to make offline plots manage changing experiment type mid-way through?
             # overridden_experiment_name = iu_meta_data.get('experiment_name')
