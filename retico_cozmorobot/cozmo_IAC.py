@@ -149,9 +149,9 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
         # Starting a fresh execution
         else:
             self.execution_uuid = str(uuid.uuid4()).split("-")[0]
-            print(f"Starting new execution with uuid {self.execution_uuid} and date {self.date_timestamp}")
             self.experiment_name = iu_meta_data['experiment_name'] # TODO: move to if an agent was not loaded
             self.experiment_shorthand_name = ExperimentName(self.experiment_name).name
+            print(f"Starting new execution with uuid {self.execution_uuid} and date {self.date_timestamp}. Experiment [{self.experiment_shorthand_name}] {self.experiment_name}")
             self.rand_seed = np.random.randint(100000)
 
             if self.experiment_name == ExperimentName.a.value:
