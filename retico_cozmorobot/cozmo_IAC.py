@@ -41,6 +41,8 @@ class ExperimentName(Enum):
     f = 'cozmo_clip_cos_sim_split_with_region_deletion'
     g = 'cozmo_clip_cos_sim_split_progressive_splits'
     h = 'cozmo_clip_cos_sim_split_progressive_splits_random_sampling'
+    i = 'cozmo_clip_cos_sim_split_progressive_splits_random_sampling_new_learning_potential_calculation'
+    j = 'cozmo_clip_cos_sim_split_progressive_splits_epsilon_greedy_sampling_new_learning_potential_calculation'
 
 class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame):
     """
@@ -73,7 +75,6 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
         # This is so we only set a configuration in one place, to limit error and simplify the pipeline
         self.save_data = None
         self.experiment_name = None
-        self.experiment_shorthand_name = None
         self.experiment_shorthand_name = None
         self.execution_uuid = None
         self.max_turn_count = None
@@ -148,9 +149,9 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
         # Starting a fresh execution
         else:
             self.execution_uuid = str(uuid.uuid4()).split("-")[0]
-            print(f"Starting new execution with uuid {self.execution_uuid} and date {self.date_timestamp}")
             self.experiment_name = iu_meta_data['experiment_name'] # TODO: move to if an agent was not loaded
             self.experiment_shorthand_name = ExperimentName(self.experiment_name).name
+            print(f"Starting new execution with uuid {self.execution_uuid} and date {self.date_timestamp}. Experiment [{self.experiment_shorthand_name}] {self.experiment_name}")
             self.rand_seed = np.random.randint(100000)
 
             if self.experiment_name == ExperimentName.a.value:
