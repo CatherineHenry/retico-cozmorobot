@@ -76,7 +76,6 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
         self.save_data = None
         self.experiment_name = None
         self.experiment_shorthand_name = None
-        self.experiment_shorthand_name = None
         self.execution_uuid = None
         self.max_turn_count = None
         self.prior_max_turn_counts = 0
