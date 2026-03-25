@@ -43,6 +43,8 @@ class ExperimentName(Enum):
     h = 'cozmo_clip_cos_sim_split_progressive_splits_random_sampling'
     i = 'cozmo_clip_cos_sim_split_progressive_splits_random_sampling_new_learning_potential_calculation'
     j = 'cozmo_clip_cos_sim_split_progressive_splits_epsilon_greedy_sampling_new_learning_potential_calculation'
+    k = 'cozmo_clip_random_splits_random_sampling_new_learning_potential_calculation'
+    l = 'cozmo_clip_cos_sim_split_progressive_splits_epsilon_greedy_sampling_new_learning_potential_calculation_smaller_initial_execution'
 
 class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame):
     """
