@@ -27,7 +27,6 @@ import shutil
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
 class ExperimentName(Enum):
     # Note: These values need to stay in sync with the Explauto interest model config names
     a = 'cozmo_binary_obj_detection'  # implementation with minimal changes to compare against prior work. Only include T/F obj detected. No other changes.
@@ -43,6 +42,10 @@ class ExperimentName(Enum):
     h = 'cozmo_clip_cos_sim_split_progressive_splits_random_sampling'
     i = 'cozmo_clip_cos_sim_split_progressive_splits_random_sampling_new_learning_potential_calculation'
     j = 'cozmo_clip_cos_sim_split_progressive_splits_epsilon_greedy_sampling_new_learning_potential_calculation'
+    k = 'cozmo_clip_random_splits_random_sampling_new_learning_potential_calculation'
+    l = 'cozmo_clip_cos_sim_split_progressive_splits_epsilon_greedy_sampling_new_learning_potential_calculation_smaller_initial_execution'
+    m = 'cozmo_clip_no_splits_random_sampling_new_learning_potential_calculation'
+
 
 class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame):
     """
@@ -66,11 +69,11 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
     def output_iu():
         return IACMotorGoalIU
 
-    def __init__(self, plot_window=None, **kwargs):
+    def __init__(self, plot_window=None, simulation_data=None, **kwargs):
         super().__init__(**kwargs)
 
         self.plot_window = plot_window
-
+        self.simulation_data = simulation_data
         # These will be set in a call to setup_iac when we receive the first (and only) IACInitializationIU
         # This is so we only set a configuration in one place, to limit error and simplify the pipeline
         self.save_data = None
@@ -123,9 +126,9 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
             self.execution_uuid = updated_execution_uuid
             self.agent.execution_uuid = updated_execution_uuid
             # +1 because we are loading the starting value in from a prior execution, meaning this execution is the prior + 1
-            execution_iteration = self.agent.interest_model.get_execution_iteration + 1
-            self.max_turn_count = self.agent.interest_model.max_turn_counts[execution_iteration] if execution_iteration < len(self.agent.interest_model.max_turn_counts) else self.agent.interest_model.max_turn_counts[-1]
-            self.prior_max_turn_counts = sum(self.agent.interest_model.max_turn_counts[:execution_iteration] if execution_iteration < len(self.agent.interest_model.max_turn_counts) else self.agent.interest_model.max_turn_counts[:-1] + [self.agent.interest_model.max_turn_counts[-1]] *((execution_iteration+1)-len(self.agent.interest_model.max_turn_counts)))
+            execution_iteration = self.agent.interest_model.get_execution_iteration() + 1
+            self.max_turn_count = self.agent.interest_model.get_max_turn_counts()[execution_iteration] if execution_iteration < len(self.agent.interest_model.get_max_turn_counts()) else self.agent.interest_model.get_max_turn_counts()[-1]
+            self.prior_max_turn_counts = sum(self.agent.interest_model.get_max_turn_counts()[:execution_iteration] if execution_iteration < len(self.agent.interest_model.get_max_turn_counts()) else self.agent.interest_model.get_max_turn_counts()[:-1] + [self.agent.interest_model.max_turn_counts[-1]] *((execution_iteration+1)-len(self.agent.interest_model.max_turn_counts)))
 
             # TODO: Do we want this functionality? How to make offline plots manage changing experiment type mid-way through?
             # overridden_experiment_name = iu_meta_data.get('experiment_name')
@@ -163,9 +166,13 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
 
 
 
-            # -5in | +18in X, +-12in Y  exploration space
-            m_mins = [-127, -300, -180]   # Cozmo Pose x,y (width and length of space + rotation) distance in mm # SOME PADDING
-            m_maxs = [482, 300, 180]  # Cozmo Pose x,y + rotation distance in mm # SOME PADDING
+            # # -5in | +18in X, +-12in Y  exploration space
+            # m_mins = [-127, -300, -180]   # Cozmo Pose x,y (width and length of space + rotation) distance in mm # SOME PADDING
+            # m_maxs = [482, 300, 180]  # Cozmo Pose x,y + rotation distance in mm # SOME PADDING
+            # -5in | +39in X, +/- 17in Y  exploration space
+            m_mins = [-127, -431, -180]   # Cozmo Pose x,y (width and length of space + rotation) distance in mm # SOME PADDING
+            m_maxs = [991, 431, 180]  # Cozmo Pose x,y + rotation distance in mm # SOME PADDING
+
 
 
             # ## 18 x 12 in exploration space *2
@@ -206,7 +213,8 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
 
             # Select Interest Model config based on Experiment
             config_name = self.experiment_name
-            self.interest_model = InterestModel.from_configuration(cozmo_env.conf, cozmo_env.conf.m_dims, 'tree', config_name, rand_seed=self.rand_seed) # passing nav mem map here because we rely on pass by reference for dynamic updates.
+            self.interest_model = InterestModel.from_configuration(cozmo_env.conf, cozmo_env.conf.m_dims, 'tree', config_name, rand_seed=self.rand_seed,
+                                                                   simulation_data=self.simulation_data) # passing nav mem map here because we rely on pass by reference for dynamic updates.
             self.agent = ReticoAgent(cozmo_env.conf, self.sensorimotor_model, self.interest_model, execution_uuid=self.execution_uuid, execution_date_timestamp=self.date_timestamp, save_data=self.save_data, experiment_name=self.experiment_name, rand_seed=self.rand_seed)  # agent is necessary to avoid bootstrapping issues
 
             self.max_turn_count = self.interest_model.max_turn_counts[0]
