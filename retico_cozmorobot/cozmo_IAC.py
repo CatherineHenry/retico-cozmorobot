@@ -103,7 +103,7 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
         # If an execution ID was included, we are loading a prior execution
         if self.execution_uuid:
             self.prior_execution_date_timestamp = iu_meta_data.get('date_timestamp')
-
+            prior_execution_uuid = self.execution_uuid
             updated_execution_uuid = f"{self.execution_uuid}_{str(uuid.uuid4()).split('-')[0]}"
             print(f"Updated execution uuid: {updated_execution_uuid}")
             Path(f"./IAC_output_data/{self.date_timestamp}").mkdir(parents=True, exist_ok=True)
@@ -127,8 +127,10 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
             self.agent.execution_uuid = updated_execution_uuid
             # +1 because we are loading the starting value in from a prior execution, meaning this execution is the prior + 1
             execution_iteration = self.agent.interest_model.get_execution_iteration() + 1
+            self.agent.interest_model.execution_iteration = execution_iteration
             self.max_turn_count = self.agent.interest_model.get_max_turn_counts()[execution_iteration] if execution_iteration < len(self.agent.interest_model.get_max_turn_counts()) else self.agent.interest_model.get_max_turn_counts()[-1]
-            self.prior_max_turn_counts = sum(self.agent.interest_model.get_max_turn_counts()[:execution_iteration] if execution_iteration < len(self.agent.interest_model.get_max_turn_counts()) else self.agent.interest_model.get_max_turn_counts()[:-1] + [self.agent.interest_model.max_turn_counts[-1]] *((execution_iteration+1)-len(self.agent.interest_model.max_turn_counts)))
+            # self.max_turn_count = 20 # override for some user studies
+            self.prior_max_turn_counts = sum(self.agent.interest_model.get_max_turn_counts()[:execution_iteration] if execution_iteration-1 <= len(self.agent.interest_model.get_max_turn_counts()) else self.agent.interest_model.get_max_turn_counts() + [self.agent.interest_model.get_max_turn_counts()[-1]] * ((execution_iteration-1)-len(self.agent.interest_model.get_max_turn_counts())))
 
             # TODO: Do we want this functionality? How to make offline plots manage changing experiment type mid-way through?
             # overridden_experiment_name = iu_meta_data.get('experiment_name')
@@ -143,7 +145,7 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
 
             self.experiment_name = self.agent.experiment_name  # override experiment with whatever was used in the loaded model
             self.experiment_shorthand_name = ExperimentName(self.experiment_name).name
-            print(f"Loading prior execution with uuid {self.execution_uuid} and date {self.prior_execution_date_timestamp}. Continuing with experiment '{self.experiment_name}' and new date of {self.date_timestamp}")
+            print(f"Loading prior execution with uuid {prior_execution_uuid} and date {self.prior_execution_date_timestamp}. \nContinuing with updated execution uuid {self.execution_uuid} and experiment '{self.experiment_name}' with new date of {self.date_timestamp}")
 
             self.rand_seed = self.agent.rand_seed
             self.interest_model = self.agent.interest_model
@@ -166,6 +168,9 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
 
 
 
+            # -5in | +21in X, +-12in Y  exploration space
+            # m_mins = [-127, -300, -180]   # Cozmo Pose x,y (width and length of space + rotation) distance in mm # SOME PADDING
+            # m_maxs = [533, 300, 180]  # Cozmo Pose x,y + rotation distance in mm # SOME PADDING
             # # -5in | +18in X, +-12in Y  exploration space
             # m_mins = [-127, -300, -180]   # Cozmo Pose x,y (width and length of space + rotation) distance in mm # SOME PADDING
             # m_maxs = [482, 300, 180]  # Cozmo Pose x,y + rotation distance in mm # SOME PADDING
@@ -217,7 +222,7 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
                                                                    simulation_data=self.simulation_data) # passing nav mem map here because we rely on pass by reference for dynamic updates.
             self.agent = ReticoAgent(cozmo_env.conf, self.sensorimotor_model, self.interest_model, execution_uuid=self.execution_uuid, execution_date_timestamp=self.date_timestamp, save_data=self.save_data, experiment_name=self.experiment_name, rand_seed=self.rand_seed)  # agent is necessary to avoid bootstrapping issues
 
-            self.max_turn_count = self.interest_model.max_turn_counts[0]
+            self.max_turn_count = self.interest_model.get_max_turn_counts()[0]
 
 
         Path(f"IAC_output_data/{self.date_timestamp}").mkdir(parents=True, exist_ok=True)
