@@ -104,24 +104,43 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
         if self.execution_uuid:
             self.prior_execution_date_timestamp = iu_meta_data.get('date_timestamp')
             prior_execution_uuid = self.execution_uuid
-            updated_execution_uuid = f"{self.execution_uuid}_{str(uuid.uuid4()).split('-')[0]}"
-            print(f"Updated execution uuid: {updated_execution_uuid}")
-            Path(f"./IAC_output_data/{self.date_timestamp}").mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(f'./IAC_output_data/{self.prior_execution_date_timestamp}/agent_{self.execution_uuid}.pickle',
-                            f'./IAC_output_data/{self.date_timestamp}/agent_{updated_execution_uuid}.pickle')
-            shutil.copyfile(f'./IAC_output_data/{self.prior_execution_date_timestamp}/sensori_effect_{self.execution_uuid}.csv',
-                            f'./IAC_output_data/{self.date_timestamp}/sensori_effect_{updated_execution_uuid}.csv')
+            Path(f"../client/IAC_output_data/{self.date_timestamp}").mkdir(parents=True, exist_ok=True)
+            if self.simulation_data is not None:
+                updated_execution_uuid = f"{self.execution_uuid}_sim{str(uuid.uuid4()).split('-')[0]}"
+                print(f"Updated execution uuid: {updated_execution_uuid}")
+                shutil.copyfile(f'../client/IAC_output_data/{self.prior_execution_date_timestamp}/agent_and_sensory_effect/agent_{self.execution_uuid}.pickle',
+                                f'../client/IAC_output_data/{self.date_timestamp}/agent_and_sensory_effect/agent_{updated_execution_uuid}.pickle')
+                shutil.copyfile(f'../client/IAC_output_data/{self.prior_execution_date_timestamp}/agent_and_sensory_effect/sensori_effect_{self.execution_uuid}.csv',
+                                f'../client/IAC_output_data/{self.date_timestamp}/agent_and_sensory_effect/sensori_effect_{updated_execution_uuid}.csv')
+                # TODO: this is currently hardcoded for bb type, update if we end up supporting other configs
+                # clip_bb_path = Path(f"./extraction_output/{self.date_timestamp}/bb/{updated_execution_uuid}/extracted/")
+                # clip_bb_path.mkdir(parents=True, exist_ok=True)
+                Path(f"../client/IAC_output_data/{self.date_timestamp}/images_detected_objs/bb/{updated_execution_uuid}/extracted/").mkdir(parents=True, exist_ok=True)
+                shutil.copytree(f"../client/IAC_output_data/{self.prior_execution_date_timestamp}/images_detected_objs/bb/{self.execution_uuid}/extracted/",
+                                f"../client/IAC_output_data/{self.date_timestamp}/images_detected_objs/bb/{updated_execution_uuid}/extracted/",
+                                dirs_exist_ok = True)
 
-            # TODO: this is currently hardcoded for bb type, update if we end up supporting other configs
-            # clip_bb_path = Path(f"./extraction_output/{self.date_timestamp}/bb/{updated_execution_uuid}/extracted/")
-            # clip_bb_path.mkdir(parents=True, exist_ok=True)
-            Path(f"./extraction_output/{self.date_timestamp}/bb/{updated_execution_uuid}/extracted/").mkdir(parents=True, exist_ok=True)
-            shutil.copytree(f"./extraction_output/{self.prior_execution_date_timestamp}/bb/{self.execution_uuid}/extracted/",
-                            f"./extraction_output/{self.date_timestamp}/bb/{updated_execution_uuid}/extracted/",
-                            dirs_exist_ok = True)
+                with open(f'../client/IAC_output_data/{self.date_timestamp}/agent_and_sensory_effect/agent_{updated_execution_uuid}.pickle', 'rb') as f:
+                    self.agent = pickle.load(f)
 
-            with open(f'./IAC_output_data/{self.date_timestamp}/agent_{updated_execution_uuid}.pickle', 'rb') as f:
-                self.agent = pickle.load(f)
+            else:
+                updated_execution_uuid = f"{self.execution_uuid}_{str(uuid.uuid4()).split('-')[0]}"
+                print(f"Updated execution uuid: {updated_execution_uuid}")
+                Path(f"./IAC_output_data/{self.date_timestamp}").mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(f'./IAC_output_data/{self.prior_execution_date_timestamp}/agent_{self.execution_uuid}.pickle',
+                                f'./IAC_output_data/{self.date_timestamp}/agent_{updated_execution_uuid}.pickle')
+                shutil.copyfile(f'./IAC_output_data/{self.prior_execution_date_timestamp}/sensori_effect_{self.execution_uuid}.csv',
+                                f'./IAC_output_data/{self.date_timestamp}/sensori_effect_{updated_execution_uuid}.csv')
+                # TODO: this is currently hardcoded for bb type, update if we end up supporting other configs
+                # clip_bb_path = Path(f"./extraction_output/{self.date_timestamp}/bb/{updated_execution_uuid}/extracted/")
+                # clip_bb_path.mkdir(parents=True, exist_ok=True)
+                Path(f"./extraction_output/{self.date_timestamp}/bb/{updated_execution_uuid}/extracted/").mkdir(parents=True, exist_ok=True)
+                shutil.copytree(f"./extraction_output/{self.prior_execution_date_timestamp}/bb/{self.execution_uuid}/extracted/",
+                                f"./extraction_output/{self.date_timestamp}/bb/{updated_execution_uuid}/extracted/",
+                                dirs_exist_ok = True)
+
+                with open(f'./IAC_output_data/{self.date_timestamp}/agent_{updated_execution_uuid}.pickle', 'rb') as f:
+                    self.agent = pickle.load(f)
 
             self.execution_uuid = updated_execution_uuid
             self.agent.execution_uuid = updated_execution_uuid
@@ -144,6 +163,7 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
             #     self.experiment_shorthand_name = ExperimentName(self.experiment_name).name
 
             self.experiment_name = self.agent.experiment_name  # override experiment with whatever was used in the loaded model
+            self.agent.execution_date_timestamp = self.date_timestamp
             self.experiment_shorthand_name = ExperimentName(self.experiment_name).name
             print(f"Loading prior execution with uuid {prior_execution_uuid} and date {self.prior_execution_date_timestamp}. \nContinuing with updated execution uuid {self.execution_uuid} and experiment '{self.experiment_name}' with new date of {self.date_timestamp}")
 
@@ -153,7 +173,11 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
 
         # Starting a fresh execution
         else:
-            self.execution_uuid = str(uuid.uuid4()).split("-")[0]
+            if self.simulation_data is not None:
+                self.execution_uuid = f"sim{str(uuid.uuid4()).split('-')[0]}"
+            else:
+                self.execution_uuid = str(uuid.uuid4()).split("-")[0]
+
             self.experiment_name = iu_meta_data['experiment_name'] # TODO: move to if an agent was not loaded
             self.experiment_shorthand_name = ExperimentName(self.experiment_name).name
             print(f"Starting new execution with uuid {self.execution_uuid} and date {self.date_timestamp}. Experiment [{self.experiment_shorthand_name}] {self.experiment_name}")
