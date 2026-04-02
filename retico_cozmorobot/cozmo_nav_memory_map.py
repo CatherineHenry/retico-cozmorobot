@@ -48,7 +48,11 @@ class CozmoNavMemoryMapModule(retico_core.AbstractModule):
             nav_mem_map = self.robot.world.nav_memory_map
             if save_data:
                 filename = f'nav_memory_map_snapshots_{execution_uuid}.pickle'
-                offline_data_dir = f'./IAC_output_data/{date_timestamp}/data_for_offline_replay/{execution_uuid}'
+                if "sim" in execution_uuid:
+                    offline_data_dir = f'../client/IAC_output_data/{date_timestamp}/data_for_offline_replay/{execution_uuid}'
+                else:
+                    offline_data_dir = f'./IAC_output_data/{date_timestamp}/data_for_offline_replay/{execution_uuid}'
+
                 if not Path(offline_data_dir).is_dir():
                     Path(offline_data_dir).mkdir(parents=True, exist_ok=True)
                 split_execution_uuid = execution_uuid.split("_")
@@ -56,7 +60,11 @@ class CozmoNavMemoryMapModule(retico_core.AbstractModule):
                 if len(split_execution_uuid) > 1:
                     if not os.path.exists(f"{offline_data_dir}/{filename}"):
                         prior_execution_uuid = "_".join(execution_uuid.split("_")[0:-1])
-                        prior_execution_dir = f'./IAC_output_data/{prior_execution_date_timestamp}/data_for_offline_replay/{prior_execution_uuid}'
+                        if "sim" in execution_uuid:
+                            prior_execution_dir = f'../client/IAC_output_data/{prior_execution_date_timestamp}/data_for_offline_replay/{prior_execution_uuid}'
+                        else:
+                            prior_execution_dir = f'./IAC_output_data/{prior_execution_date_timestamp}/data_for_offline_replay/{prior_execution_uuid}'
+
                         prior_execution_filename =  f"nav_memory_map_snapshots_{prior_execution_uuid}.pickle"
                         shutil.copyfile(f'{prior_execution_dir}/{prior_execution_filename}',
                                         f'{offline_data_dir}/{filename}')
