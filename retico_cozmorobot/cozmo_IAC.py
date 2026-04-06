@@ -13,6 +13,7 @@ import pandas as pd
 from explauto import InterestModel, SensorimotorModel
 from explauto.agent import ReticoAgent
 from explauto.environment.cozmo_env import CozmoEnvironment
+from opentelemetry import trace
 
 import retico_core
 from retico_core import abstract, UpdateType
@@ -23,6 +24,7 @@ from retico_vision import CozmoNavigationMemoryMapIU, ObjectFeaturesIU, ObjectPe
 
 import shutil
 
+tracer = trace.get_tracer("my.tracer.name")
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -45,6 +47,7 @@ class ExperimentName(Enum):
     k = 'cozmo_clip_random_splits_random_sampling_new_learning_potential_calculation'
     l = 'cozmo_clip_cos_sim_split_progressive_splits_epsilon_greedy_sampling_new_learning_potential_calculation_smaller_initial_execution'
     m = 'cozmo_clip_no_splits_random_sampling_new_learning_potential_calculation'
+    n = 'wip'
 
 
 class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame):
@@ -107,40 +110,24 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
             Path(f"../client/IAC_output_data/{self.date_timestamp}").mkdir(parents=True, exist_ok=True)
             if self.simulation_data is not None:
                 updated_execution_uuid = f"{self.execution_uuid}_sim{str(uuid.uuid4()).split('-')[0]}"
-                print(f"Updated execution uuid: {updated_execution_uuid}")
-                shutil.copyfile(f'../client/IAC_output_data/{self.prior_execution_date_timestamp}/agent_and_sensory_effect/agent_{self.execution_uuid}.pickle',
-                                f'../client/IAC_output_data/{self.date_timestamp}/agent_and_sensory_effect/agent_{updated_execution_uuid}.pickle')
-                shutil.copyfile(f'../client/IAC_output_data/{self.prior_execution_date_timestamp}/agent_and_sensory_effect/sensori_effect_{self.execution_uuid}.csv',
-                                f'../client/IAC_output_data/{self.date_timestamp}/agent_and_sensory_effect/sensori_effect_{updated_execution_uuid}.csv')
-                # TODO: this is currently hardcoded for bb type, update if we end up supporting other configs
-                # clip_bb_path = Path(f"./extraction_output/{self.date_timestamp}/bb/{updated_execution_uuid}/extracted/")
-                # clip_bb_path.mkdir(parents=True, exist_ok=True)
-                Path(f"../client/IAC_output_data/{self.date_timestamp}/images_detected_objs/bb/{updated_execution_uuid}/extracted/").mkdir(parents=True, exist_ok=True)
-                shutil.copytree(f"../client/IAC_output_data/{self.prior_execution_date_timestamp}/images_detected_objs/bb/{self.execution_uuid}/extracted/",
-                                f"../client/IAC_output_data/{self.date_timestamp}/images_detected_objs/bb/{updated_execution_uuid}/extracted/",
-                                dirs_exist_ok = True)
-
-                with open(f'../client/IAC_output_data/{self.date_timestamp}/agent_and_sensory_effect/agent_{updated_execution_uuid}.pickle', 'rb') as f:
-                    self.agent = pickle.load(f)
-
             else:
                 updated_execution_uuid = f"{self.execution_uuid}_{str(uuid.uuid4()).split('-')[0]}"
-                print(f"Updated execution uuid: {updated_execution_uuid}")
-                Path(f"./IAC_output_data/{self.date_timestamp}").mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(f'./IAC_output_data/{self.prior_execution_date_timestamp}/agent_{self.execution_uuid}.pickle',
-                                f'./IAC_output_data/{self.date_timestamp}/agent_{updated_execution_uuid}.pickle')
-                shutil.copyfile(f'./IAC_output_data/{self.prior_execution_date_timestamp}/sensori_effect_{self.execution_uuid}.csv',
-                                f'./IAC_output_data/{self.date_timestamp}/sensori_effect_{updated_execution_uuid}.csv')
-                # TODO: this is currently hardcoded for bb type, update if we end up supporting other configs
-                # clip_bb_path = Path(f"./extraction_output/{self.date_timestamp}/bb/{updated_execution_uuid}/extracted/")
-                # clip_bb_path.mkdir(parents=True, exist_ok=True)
-                Path(f"./extraction_output/{self.date_timestamp}/bb/{updated_execution_uuid}/extracted/").mkdir(parents=True, exist_ok=True)
-                shutil.copytree(f"./extraction_output/{self.prior_execution_date_timestamp}/bb/{self.execution_uuid}/extracted/",
-                                f"./extraction_output/{self.date_timestamp}/bb/{updated_execution_uuid}/extracted/",
-                                dirs_exist_ok = True)
+            print(f"Updated execution uuid: {updated_execution_uuid}")
+            Path(f"./IAC_output_data/{self.date_timestamp}").mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(f'./IAC_output_data/{self.prior_execution_date_timestamp}/agent_{self.execution_uuid}.pickle',
+                            f'./IAC_output_data/{self.date_timestamp}/agent_{updated_execution_uuid}.pickle')
+            shutil.copyfile(f'./IAC_output_data/{self.prior_execution_date_timestamp}/sensori_effect_{self.execution_uuid}.csv',
+                            f'./IAC_output_data/{self.date_timestamp}/sensori_effect_{updated_execution_uuid}.csv')
+            # TODO: this is currently hardcoded for bb type, update if we end up supporting other configs
+            # clip_bb_path = Path(f"./extraction_output/{self.date_timestamp}/bb/{updated_execution_uuid}/extracted/")
+            # clip_bb_path.mkdir(parents=True, exist_ok=True)
+            Path(f"./extraction_output/{self.date_timestamp}/bb/{updated_execution_uuid}/extracted/").mkdir(parents=True, exist_ok=True)
+            shutil.copytree(f"./extraction_output/{self.prior_execution_date_timestamp}/bb/{self.execution_uuid}/extracted/",
+                            f"./extraction_output/{self.date_timestamp}/bb/{updated_execution_uuid}/extracted/",
+                            dirs_exist_ok = True)
 
-                with open(f'./IAC_output_data/{self.date_timestamp}/agent_{updated_execution_uuid}.pickle', 'rb') as f:
-                    self.agent = pickle.load(f)
+            with open(f'./IAC_output_data/{self.date_timestamp}/agent_{updated_execution_uuid}.pickle', 'rb') as f:
+                self.agent = pickle.load(f)
 
             self.execution_uuid = updated_execution_uuid
             self.agent.execution_uuid = updated_execution_uuid
@@ -253,6 +240,7 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
         print(f"Random seed is {self.rand_seed}")
         print(f"Max turn count is {self.max_turn_count} with a prior max turn count of {self.prior_max_turn_counts}")
 
+    @tracer.start_as_current_span("iac_process_update")
     def process_update(self, update_message):
         for input_iu, update_type in update_message:
             if update_type != UpdateType.ADD:
@@ -296,7 +284,7 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
             grounded_object_permanence_iu = get_first_instance_of_target_grounded_iu(input_iu, [ObjectPermanenceIU]) #object permanence
             # If an object was detected but too far away, object features would have data but the Object Detection payload should be empty
             if len(grounded_object_permanence_iu.payload) == 0:
-                print("Didn't get feature, setting to -1 and continuing.")
+                print(f"[{flow_uuid}] Didn't get feature, setting to -1 and continuing.")
                 sensori_effect = [-1]*self.sensorimotor_model.conf.s_ndims
                 label = 'whitespace'
             else:
@@ -323,13 +311,17 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
                 sensori_df.to_csv(f'./IAC_output_data/{self.date_timestamp}/sensori_effect_{self.execution_uuid}.csv', mode='a', index=False, header=False)
 
             # inform the agent of the sensorimotor consequence of the action and update both the sensorimotor and interest models
+            start_time = time.time()
             self.agent.perceive(sensori_effect, flow_uuid=flow_uuid, nav_memory_map=input_iu.payload)
+            end_time = time.time()
+            elapsed_time = end_time - start_time
+            print(f"[{flow_uuid}] --- IAC perception took {elapsed_time} seconds ---")
             if self.plot_window is not None:
                 self.agent.interest_model.tree.plot(self.plot_window.canvas.axes, plot_dims=[0,1,2])
                 self.plot_window.update()
 
             current_turn_count = len(self.interest_model.data_x)
-            print(f"Current turn: {current_turn_count}")
+            print(f"[{flow_uuid}] Current turn: {current_turn_count}")
             # We've completed max number of turns, save the model and exit
             if self.max_turn_count != 0 and current_turn_count == self.max_turn_count + self.prior_max_turn_counts:
                 print(f"Execution {self.execution_uuid}: Successfully ran {self.max_turn_count} actions (in addition to prior execution(s) {self.prior_max_turn_counts} actions). Saved agent and quitting program.")
