@@ -19,6 +19,7 @@ import retico_core
 from retico_core import abstract, UpdateType
 from retico_core.helper_funcs import get_first_instance_of_target_grounded_iu
 from retico_core.robot import IACMotorGoalIU, RobotStateIU
+from retico_core.text import TextIU
 from retico_cozmorobot.initialize_cozmo_IAC import IACInitializationIU
 from retico_vision import CozmoNavigationMemoryMapIU, ObjectFeaturesIU, ObjectPermanenceIU
 
@@ -66,7 +67,7 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
 
     @staticmethod
     def input_ius():
-        return [IACInitializationIU, CozmoNavigationMemoryMapIU]
+        return [IACInitializationIU, CozmoNavigationMemoryMapIU, TextIU]
 
     @staticmethod
     def output_iu():
@@ -276,7 +277,11 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
             # Calling produce is still important here as it sets variables we use downstream.
             self.agent.produce(flow_uuid=flow_uuid, manual_choice=motor_goal)
 
-        else:
+        elif isinstance(input_iu, CozmoNavigationMemoryMapIU):
+            nav_memory_map=input_iu.payload
+            self.agent.interest_model.update_nav_memory_map(nav_memory_map)
+            return None
+        elif isinstance(input_iu, TextIU):
             grounded_motor_action_iu = get_first_instance_of_target_grounded_iu(input_iu, [RobotStateIU])
             # TODO: does this work here?
             if self.manual_control:
@@ -315,7 +320,7 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
 
             # inform the agent of the sensorimotor consequence of the action and update both the sensorimotor and interest models
             start_time = time.time()
-            self.agent.perceive(sensori_effect, flow_uuid=flow_uuid, nav_memory_map=input_iu.payload)
+            self.agent.perceive(sensori_effect, flow_uuid=flow_uuid)
             end_time = time.time()
             elapsed_time = end_time - start_time
             print(f"[{flow_uuid}] --- IAC perception took {elapsed_time} seconds ---")
