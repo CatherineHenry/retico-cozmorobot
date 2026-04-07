@@ -129,6 +129,9 @@ class CozmoIntelligentAdaptiveCuriosityModule(abstract.AbstractModule, tk.Frame)
             with open(f'./IAC_output_data/{self.date_timestamp}/agent_{updated_execution_uuid}.pickle', 'rb') as f:
                 self.agent = pickle.load(f)
 
+            if self.simulation_data is not None:
+                self.agent.interest_model.simulation_data = self.simulation_data
+
             self.execution_uuid = updated_execution_uuid
             self.agent.execution_uuid = updated_execution_uuid
             # +1 because we are loading the starting value in from a prior execution, meaning this execution is the prior + 1
