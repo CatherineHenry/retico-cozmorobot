@@ -8,6 +8,7 @@ from pathlib import Path
 
 import numpy as np
 from explauto.environment.cozmo_env import CozmoEnvironment
+from opentelemetry import trace
 
 import retico_core
 from retico_core.robot import IACMotorGoalIU, RobotStateIU
@@ -15,6 +16,7 @@ from retico_core.robot import IACMotorGoalIU, RobotStateIU
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+tracer = trace.get_tracer("my.tracer.name")
 
 class CozmoExecuteIACMotorGoalModule(retico_core.AbstractModule):
 
@@ -42,7 +44,7 @@ class CozmoExecuteIACMotorGoalModule(retico_core.AbstractModule):
         self.cozmo_iac_env = None
         self.manual_control = manual_control
 
-
+    @tracer.start_as_current_span("motor_goal_process_update")
     def process_update(self, update_message):
         for input_iu, update_type in update_message:
             if update_type != retico_core.UpdateType.ADD:

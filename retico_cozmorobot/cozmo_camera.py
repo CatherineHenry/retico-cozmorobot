@@ -3,6 +3,8 @@ import os
 import sys
 import threading
 
+from opentelemetry import trace
+
 # retico
 import retico_core
 from retico_core.robot import RobotStateIU
@@ -12,6 +14,7 @@ import cozmo
 import time
 
 from collections import deque
+tracer = trace.get_tracer("my.tracer.name")
 
 
 class CozmoCameraModule(retico_core.AbstractModule):
@@ -63,15 +66,16 @@ class CozmoCameraModule(retico_core.AbstractModule):
                 time.sleep(0.5)
                 continue
 
-            input_iu = self.queue.popleft()
-            while len(self.img_queue) < 1:
-                time.sleep(0.05)
-            img = self.img_queue.popleft()
-            output_iu = self.create_iu(input_iu)
-            output_iu.set_image(img, 1, 1)
-            self.robot.camera.image_stream_enabled = False
-            um = retico_core.UpdateMessage.from_iu(output_iu, retico_core.UpdateType.ADD)
-            self.append(um)
+            with tracer.start_as_current_span("cozmo_camera") as span:
+                input_iu = self.queue.popleft()
+                while len(self.img_queue) < 1:
+                    time.sleep(0.05)
+                img = self.img_queue.popleft()
+                output_iu = self.create_iu(input_iu)
+                output_iu.set_image(img, 1, 1)
+                self.robot.camera.image_stream_enabled = False
+                um = retico_core.UpdateMessage.from_iu(output_iu, retico_core.UpdateType.ADD)
+                self.append(um)
         return None
 
     def configure_camera(self):

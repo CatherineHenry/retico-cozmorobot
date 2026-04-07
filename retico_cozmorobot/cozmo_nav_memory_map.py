@@ -4,10 +4,13 @@ import pickle
 import shutil
 from pathlib import Path
 
+from opentelemetry import trace
+
 import retico_core
 from retico_vision import ObjectPermanenceIU
 from retico_vision.vision import CozmoNavigationMemoryMapIU
 
+tracer = trace.get_tracer("my.tracer.name")
 
 class CozmoNavMemoryMapModule(retico_core.AbstractModule):
 
@@ -33,6 +36,7 @@ class CozmoNavMemoryMapModule(retico_core.AbstractModule):
         self.robot = robot
         self.robot.world.request_nav_memory_map(0.5)
 
+    @tracer.start_as_current_span("nav_mem_map_process_update")
     def process_update(self, update_message):
         for input_iu, update_type in update_message:
             if update_type != retico_core.UpdateType.ADD:
