@@ -113,11 +113,7 @@ class CozmoExecuteIACMotorGoalModule(retico_core.AbstractModule):
             # Using pickle instead of csv because I need the objects for easier rendering with the existing opengl implementation.
             if save_data:
                 filename = f"motor_actions_{execution_uuid}.pickle"
-                if "sim" in execution_uuid:
-                    offline_data_dir = f'../client/IAC_output_data/{date_timestamp}/data_for_offline_replay/{execution_uuid}'
-                else:
-                    offline_data_dir = f'./IAC_output_data/{date_timestamp}/data_for_offline_replay/{execution_uuid}'
-
+                offline_data_dir = f'./IAC_output_data/{date_timestamp}/data_for_offline_replay/{execution_uuid}'
                 if not Path(offline_data_dir).is_dir():
                     Path(offline_data_dir).mkdir(parents=True, exist_ok=True) # Make directory
                 split_execution_uuid = execution_uuid.split("_")
@@ -125,11 +121,7 @@ class CozmoExecuteIACMotorGoalModule(retico_core.AbstractModule):
                 if len(split_execution_uuid) > 1:
                     if not os.path.exists(f"{offline_data_dir}/{filename}"):
                         prior_execution_uuid = "_".join(split_execution_uuid[0:-1])
-                        if "sim" in execution_uuid:
-                            prior_execution_dir = f'../client/IAC_output_data/{prior_execution_date_timestamp}/data_for_offline_replay/{prior_execution_uuid}'
-                        else:
-                            prior_execution_dir = f'./IAC_output_data/{prior_execution_date_timestamp}/data_for_offline_replay/{prior_execution_uuid}'
-
+                        prior_execution_dir = f'./IAC_output_data/{prior_execution_date_timestamp}/data_for_offline_replay/{prior_execution_uuid}'
                         prior_execution_filename =  f"motor_actions_{prior_execution_uuid}.pickle"
                         shutil.copyfile(f'{prior_execution_dir}/{prior_execution_filename}',
                                         f'{offline_data_dir}/{filename}')
