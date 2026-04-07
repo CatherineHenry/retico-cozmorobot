@@ -88,6 +88,6 @@ class CozmoIntelligentAdaptiveCuriosityInitializationModule(abstract.AbstractPro
 
         # Break out of producer loop after running 1x, we only need this for basic initialization
         self.stop()
-        print("Stopped loop for Cozmo IAC Init module")
+        print(f"[{flow_uuid}] Stopped loop for Cozmo IAC Init module")
         # The Producer Modules use return instead of um.append? or did I mess something up
         return retico_core.UpdateMessage.from_iu(output_iu, retico_core.UpdateType.ADD)
